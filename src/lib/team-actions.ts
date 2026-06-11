@@ -6,8 +6,8 @@ import { getCurrentUser } from "@/lib/auth";
 // We need a Service Role client to bypass RLS for fetching user emails and inviting users
 // since auth.users is not accessible from the public schema.
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://dummy.supabase.co",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "dummy-key",
   {
     auth: {
       autoRefreshToken: false,

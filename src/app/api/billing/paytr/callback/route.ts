@@ -3,9 +3,10 @@ import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 
 // Service role to bypass RLS for entitlements update
+// Fallback değerler build sırasında modül yüklenebilsin diye (env o anda boş)
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://dummy.supabase.co",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "dummy-key"
 );
 
 const PAYTR_MERCHANT_KEY = process.env.PAYTR_MERCHANT_KEY || "test_merchant_key";
