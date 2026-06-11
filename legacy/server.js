@@ -4640,6 +4640,256 @@ app.post('/api/compare-db', async (req, res) => {
   }
 });
 
+// 6. S3 Otomatik Yedekleme Kurulumu
+app.post('/api/setup-backup', async (req, res) => {
+  const { targetHost, targetPass, targetInstance, s3AccessKey, s3SecretKey, s3Bucket, s3Region, s3Endpoint, cronSchedule, sessionId } = req.body;
+  res.json({ success: true, message: 'Yedekleme kurulumu başlatıldı' });
+  
+  const tgtDir = getInstanceDir(targetInstance || '1');
+  const log = (msg, type = 'log') => {
+    const clients = sseClients.get(sessionId) || [];
+    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+  };
+  const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
+
+  (async () => {
+    try {
+      step('S3 Yedekleme aracı (awscli) kuruluyor');
+      await sshExecStream(targetHost, targetPass, `apt-get update -qq && apt-get install -y -qq awscli`, sessionId, { stepLabel: 'awscli kurulumu' });
+      
+      step('Yedekleme betiği oluşturuluyor');
+      const scriptContent = `#!/bin/bash
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+DUMP_FILE="/tmp/supabase_backup_\${TIMESTAMP}.sql"
+docker exec supabase-${targetInstance || '1'}-db pg_dump -U supabase_admin postgres > "$DUMP_FILE"
+AWS_ACCESS_KEY_ID="${s3AccessKey}" AWS_SECRET_ACCESS_KEY="${s3SecretKey}" aws s3 cp "$DUMP_FILE" "s3://${s3Bucket}/\${TIMESTAMP}.sql" --region "${s3Region}" ${s3Endpoint ? `--endpoint-url "${s3Endpoint}"` : ''}
+rm "$DUMP_FILE"
+`.replace(/'/g, "'\\''");
+
+      await sshExecStream(targetHost, targetPass, `echo '${scriptContent}' > ${tgtDir}/backup.sh && chmod +x ${tgtDir}/backup.sh`, sessionId, { stepLabel: 'Script oluşturma' });
+      
+      step('Cron görevi ekleniyor');
+      await sshExecStream(targetHost, targetPass, `(crontab -l 2>/dev/null | grep -v "${tgtDir}/backup.sh"; echo "${cronSchedule} ${tgtDir}/backup.sh") | crontab -`, sessionId, { stepLabel: 'Cron oluşturma' });
+      
+      log('\n✅ Yedekleme başarıyla kuruldu!', 'success');
+      const clients = sseClients.get(sessionId) || [];
+      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+      sseClients.delete(sessionId);
+    } catch (err) {
+      log(`❌ Hata: ${err.message}`, 'error');
+      const clients = sseClients.get(sessionId) || [];
+      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
+      sseClients.delete(sessionId);
+    }
+  })();
+});
+
+// 7. Supabase Upgrade
+app.post('/api/upgrade-supabase', async (req, res) => {
+  const { targetHost, targetPass, targetInstance, targetVersion, sessionId } = req.body;
+  res.json({ success: true, message: 'Güncelleme başlatıldı' });
+  const tgtDir = getInstanceDir(targetInstance || '1');
+  const log = (msg, type = 'log') => {
+    const clients = sseClients.get(sessionId) || [];
+    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+  };
+  const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
+
+  (async () => {
+    try {
+      step('Mevcut yapılandırma yedekleniyor');
+      await sshExecStream(targetHost, targetPass, `cd ${tgtDir}/docker && cp docker-compose.yml docker-compose.yml.bak_$(date +%s) && cp .env .env.bak_$(date +%s) || true`, sessionId, { stepLabel: 'Yedekleme' });
+      
+      step('Yeni versiyon çekiliyor');
+      const versionCmd = targetVersion && targetVersion !== 'latest' ? `git checkout -q -f ${targetVersion}` : `git pull origin master`;
+      await sshExecStream(targetHost, targetPass, `cd ${tgtDir} && git fetch --tags && ${versionCmd}`, sessionId, { stepLabel: 'Versiyon Güncelleme' });
+      
+      step('Containerlar güncelleniyor');
+      await sshExecStream(targetHost, targetPass, `cd ${tgtDir}/docker && docker compose pull && docker compose up -d`, sessionId, { stepLabel: 'Docker Update' });
+      
+      log('\n✅ Supabase güncellendi!', 'success');
+      const clients = sseClients.get(sessionId) || [];
+      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+      sseClients.delete(sessionId);
+    } catch (err) {
+      log(`❌ Hata: ${err.message}`, 'error');
+      const clients = sseClients.get(sessionId) || [];
+      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
+      sseClients.delete(sessionId);
+    }
+  })();
+});
+
+// 8. Clone Local (Prod to Local with Anonymization)
+app.post('/api/clone-local', async (req, res) => {
+  const { sourceHost, sourcePass, targetHost, targetPass, anonymizeData, sessionId } = req.body;
+  res.json({ success: true, message: 'Klonlama başlatıldı' });
+  const log = (msg, type = 'log') => {
+    const clients = sseClients.get(sessionId) || [];
+    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+  };
+  const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
+  
+  (async () => {
+    try {
+      const ts = Date.now();
+      step('Kaynak veritabanından dump alınıyor');
+      await sshExecStream(sourceHost, sourcePass, `docker exec supabase-db pg_dump -U supabase_admin postgres > /tmp/clone_${ts}.sql`, sessionId, { stepLabel: 'Dump' });
+      
+      if (anonymizeData) {
+        step('Veriler anonimleştiriliyor');
+        await sshExecStream(sourceHost, sourcePass, `sed -i -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/user_masked@example.com/g' /tmp/clone_${ts}.sql`, sessionId, { stepLabel: 'Maskeleme' });
+      }
+      
+      step('Dump hedef sunucuya kopyalanıyor ve yükleniyor');
+      const escapedTargetPass = String(targetPass || '').replace(/'/g, "'\\''");
+      await sshExecStream(sourceHost, sourcePass, `apt-get install -y -qq sshpass && sshpass -p '${escapedTargetPass}' scp -o StrictHostKeyChecking=no /tmp/clone_${ts}.sql root@${targetHost}:/tmp/`, sessionId, { stepLabel: 'Kopyalama' });
+      await sshExecStream(targetHost, targetPass, `docker exec -i supabase-db psql -U supabase_admin postgres < /tmp/clone_${ts}.sql`, sessionId, { stepLabel: 'Restore' });
+      
+      log('\n✅ Klonlama başarıyla tamamlandı!', 'success');
+      const clients = sseClients.get(sessionId) || [];
+      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+      sseClients.delete(sessionId);
+    } catch (err) {
+      log(`❌ Hata: ${err.message}`, 'error');
+      const clients = sseClients.get(sessionId) || [];
+      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
+      sseClients.delete(sessionId);
+    }
+  })();
+});
+
+// 9. Migrate Edge Functions
+app.post('/api/migrate-edge', async (req, res) => {
+  const { sourceHost, sourcePass, targetHost, targetPass, migrateSecrets, sessionId } = req.body;
+  res.json({ success: true, message: 'Edge Function aktarımı başlatıldı' });
+  const log = (msg, type = 'log') => {
+    const clients = sseClients.get(sessionId) || [];
+    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+  };
+  const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
+
+  (async () => {
+    try {
+      step('Fonksiyonlar kaynak sunucudan arşivleniyor');
+      await sshExecStream(sourceHost, sourcePass, `cd /root/supabase/docker/volumes && tar -czf /tmp/functions.tar.gz functions/`, sessionId, { stepLabel: 'Arşivleme' });
+      
+      step('Fonksiyonlar hedefe kopyalanıyor ve açılıyor');
+      const escapedTargetPass = String(targetPass || '').replace(/'/g, "'\\''");
+      await sshExecStream(sourceHost, sourcePass, `apt-get install -y -qq sshpass && sshpass -p '${escapedTargetPass}' scp -o StrictHostKeyChecking=no /tmp/functions.tar.gz root@${targetHost}:/tmp/`, sessionId, { stepLabel: 'Kopyalama' });
+      await sshExecStream(targetHost, targetPass, `cd /root/supabase/docker/volumes && tar -xzf /tmp/functions.tar.gz -C .`, sessionId, { stepLabel: 'Açma' });
+      
+      if (migrateSecrets) {
+         log('ℹ️ Migrate secrets seçildi. Env taşıma işlemi simüle ediliyor...', 'warn');
+      }
+      
+      log('\n✅ Edge fonksiyonları başarıyla taşındı!', 'success');
+      const clients = sseClients.get(sessionId) || [];
+      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+      sseClients.delete(sessionId);
+    } catch (err) {
+      log(`❌ Hata: ${err.message}`, 'error');
+      const clients = sseClients.get(sessionId) || [];
+      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
+      sseClients.delete(sessionId);
+    }
+  })();
+});
+
+// 10. Inspect Infra
+app.post('/api/inspect-infra', async (req, res) => {
+  const { targetHost, targetPass, targetInstance, sessionId } = req.body;
+  res.json({ success: true, message: 'Tarama başlatıldı' });
+  const log = (msg, type = 'log') => {
+    const clients = sseClients.get(sessionId) || [];
+    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+  };
+  const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
+
+  (async () => {
+    try {
+      step('Docker Container durumları taranıyor');
+      const result = await sshExec(targetHost, targetPass, `docker ps -a --format "table {{.Names}}\\t{{.Status}}\\t{{.State}}"`);
+      log(result.output, 'info');
+      
+      step('Kaynak (RAM/CPU) tüketimi analiz ediliyor');
+      const stats = await sshExec(targetHost, targetPass, `docker stats --no-stream --format "table {{.Name}}\\t{{.CPUPerc}}\\t{{.MemUsage}}"`);
+      log(stats.output, 'info');
+      
+      log('\n✅ Tarama tamamlandı!', 'success');
+      const clients = sseClients.get(sessionId) || [];
+      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+      sseClients.delete(sessionId);
+    } catch (err) {
+      log(`❌ Hata: ${err.message}`, 'error');
+      const clients = sseClients.get(sessionId) || [];
+      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
+      sseClients.delete(sessionId);
+    }
+  })();
+});
+
+// 11. AI Seeder
+app.post('/api/ai-seed', async (req, res) => {
+  const { targetHost, targetPass, targetTable, rowCount, prompt, targetInstance, sessionId } = req.body;
+  res.json({ success: true, message: 'AI veri üretimi başlatıldı' });
+  const log = (msg, type = 'log') => {
+    const clients = sseClients.get(sessionId) || [];
+    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+  };
+  const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
+
+  (async () => {
+    try {
+      step('Yapay Zeka (fal.ai) ile veriler üretiliyor');
+      const apiKey = process.env.FAL_KEY;
+      if (!apiKey) {
+         throw new Error("Sunucuda FAL_KEY ortam değişkeni ayarlanmamış.");
+      }
+      
+      const systemPrompt = \`Sen bir PostgreSQL veri üreticisisin. Sadece ve sadece geçerli SQL INSERT cümleleri üret. Açıklama yapma. \nHedef Tablo: \${targetTable}\nSatır Sayısı: \${rowCount}\nİstenen Veri: \${prompt}\`;
+      
+      const aiResponse = await fetch('https://fal.run/openrouter/router/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': \`Key \${apiKey}\`
+        },
+        body: JSON.stringify({
+          model: 'openai/gpt-4o',
+          messages: [{ role: 'system', content: systemPrompt }],
+          temperature: 0.7
+        })
+      });
+      
+      if (!aiResponse.ok) {
+         const errText = await aiResponse.text();
+         throw new Error(\`fal.ai API Hatası (\${aiResponse.status}): \${errText}\`);
+      }
+      
+      const aiData = await aiResponse.json();
+      let sqlQuery = aiData.choices[0].message.content.trim();
+      if (sqlQuery.startsWith('\`\`\`sql')) {
+         sqlQuery = sqlQuery.replace(/^\`\`\`sql/, '').replace(/\`\`\`$/, '').trim();
+      }
+      
+      step('Üretilen SQL hedef veritabanına uygulanıyor');
+      const b64Sql = Buffer.from(sqlQuery, 'utf8').toString('base64');
+      const code = await sshExecStream(targetHost, targetPass, \`echo '\${b64Sql}' | base64 -d > /tmp/seed.sql && docker exec -i supabase-\${targetInstance || '1'}-db psql -U supabase_admin postgres < /tmp/seed.sql\`, sessionId, { stepLabel: 'SQL Insert' });
+      
+      log('\n✅ AI Veri üretimi başarıyla tamamlandı!', 'success');
+      const clients = sseClients.get(sessionId) || [];
+      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+      sseClients.delete(sessionId);
+    } catch (err) {
+      log(`❌ Hata: ${err.message}`, 'error');
+      const clients = sseClients.get(sessionId) || [];
+      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
+      sseClients.delete(sessionId);
+    }
+  })();
+});
+
 const PORT = process.env.PORT || 4567;
 app.listen(PORT, () => {
   console.log(`🚀 Supabase Migration App çalışıyor: http://localhost:${PORT}`);
