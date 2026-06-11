@@ -23,18 +23,19 @@ services:
       - PAYTR_MERCHANT_KEY=${PAYTR_MERCHANT_KEY}
       - PAYTR_MERCHANT_SALT=${PAYTR_MERCHANT_SALT}
       - SAAS_RUNNER_MODE=${SAAS_RUNNER_MODE:-legacy}
-      - LEGACY_WEBAPP_URL=${LEGACY_WEBAPP_URL:-http://legacy:4567}
+      - LEGACY_WEBAPP_URL=${LEGACY_WEBAPP_URL:-http://localhost:4567}
       - ADMIN_EMAILS=${ADMIN_EMAILS}
     depends_on:
       - redis
-      - legacy
     restart: unless-stopped
 
   legacy:
     image: ghcr.io/mazisel/baseup-legacy:latest
     # GÜVENLİK: Bu API auth içermez ve müşteri sunucularında root SSH
-    # komutları çalıştırır. Port bilinçli olarak publish EDİLMİYOR —
-    # yalnızca compose iç ağından (http://legacy:4567) erişilir.
+    # komutları çalıştırır. network_mode: host kullanılıyor çünkü
+    # Docker bridge ağı dış sunuculara SSH bağlantısını engelleyebilir.
+    # Port (4567) sunucuda doğrudan açılır — UFW ile dışarıdan erişimi kapatın.
+    network_mode: host
     restart: unless-stopped
 
   redis:
