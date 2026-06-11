@@ -26,10 +26,52 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // SSE için aktif bağlantılar
 const sseClients = new Map();
+const sseHistory = new Map();
+const sseCleanupTimers = new Map();
+const SSE_HISTORY_LIMIT = 1000;
+const SSE_HISTORY_TTL_MS = 60 * 60 * 1000;
 const SSH_READY_TIMEOUT = 30000;
 const SSH_KEEPALIVE_INTERVAL = 15000;
 const SSH_KEEPALIVE_COUNT_MAX = 6;
 const SSH_RETRY_DELAYS = [2000, 5000, 10000, 15000, 30000];
+
+function formatSsePayload(payload) {
+  return `data: ${JSON.stringify(payload)}\n\n`;
+}
+
+function cacheSsePayload(sessionId, payload) {
+  if (!sessionId) return;
+  const history = sseHistory.get(sessionId) || [];
+  history.push(payload);
+  if (history.length > SSE_HISTORY_LIMIT) {
+    history.splice(0, history.length - SSE_HISTORY_LIMIT);
+  }
+  sseHistory.set(sessionId, history);
+
+  const existingTimer = sseCleanupTimers.get(sessionId);
+  if (existingTimer) clearTimeout(existingTimer);
+  const timer = setTimeout(() => {
+    sseHistory.delete(sessionId);
+    sseCleanupTimers.delete(sessionId);
+  }, SSE_HISTORY_TTL_MS);
+  sseCleanupTimers.set(sessionId, timer);
+}
+
+function writeSse(sessionId, payload, options = {}) {
+  if (options.cache !== false) cacheSsePayload(sessionId, payload);
+  const clients = sseClients.get(sessionId) || [];
+  const line = formatSsePayload(payload);
+  clients.forEach(client => client.write(line));
+}
+
+function closeSseSession(sessionId, payload) {
+  if (payload) writeSse(sessionId, payload);
+  const clients = sseClients.get(sessionId) || [];
+  clients.forEach(client => {
+    try { client.end(); } catch (_) { /* no-op */ }
+  });
+  sseClients.delete(sessionId);
+}
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -164,8 +206,7 @@ function sshExecStreamAttempt(host, password, command, sessionId) {
   return new Promise((resolve, reject) => {
     const conn = new SshClient();
     const sendLog = (msg, type = 'log') => {
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(res => res.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+      writeSse(sessionId, { type, msg });
       console.log(`[SSH ${type.toUpperCase()}] ${msg.substring(0, 200)}${msg.length > 200 ? '...' : ''}`);
     };
     let settled = false;
@@ -210,8 +251,7 @@ function sshExecStreamAttempt(host, password, command, sessionId) {
 
 async function sshExecStream(host, password, command, sessionId, options = {}) {
   const sendLog = (msg, type = 'log') => {
-    const clients = sseClients.get(sessionId) || [];
-    clients.forEach(res => res.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+    writeSse(sessionId, { type, msg });
   };
   const stepLabel = options.stepLabel || 'Bu adım';
   const maxAttempts = Math.max(1, Number(options.maxAttempts || SSH_RETRY_DELAYS.length));
@@ -1863,6 +1903,9 @@ app.get('/api/logs/:sessionId', (req, res) => {
   res.flushHeaders();
   if (!sseClients.has(sessionId)) sseClients.set(sessionId, []);
   sseClients.get(sessionId).push(res);
+  (sseHistory.get(sessionId) || []).forEach(payload => {
+    res.write(formatSsePayload(payload));
+  });
   req.on('close', () => {
     const clients = sseClients.get(sessionId) || [];
     sseClients.set(sessionId, clients.filter(c => c !== res));
@@ -1877,8 +1920,7 @@ app.post('/api/install-supabase', async (req, res) => {
   const tgtDir = getInstanceDir(targetInstance);
 
   const log = (msg, type = 'log') => {
-    const clients = sseClients.get(sessionId) || [];
-    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+    writeSse(sessionId, { type, msg });
   };
   const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
 
@@ -1939,13 +1981,11 @@ app.post('/api/install-supabase', async (req, res) => {
 
       log('\n✅ Supabase kurulumu tamamlandı!', 'success');
       log('ℹ️  Secrets alanları bir sonraki adımda otomatik oluşturulacak.', 'warn');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+      closeSseSession(sessionId, { type: 'done' });
 
     } catch (err) {
       log(`❌ Kurulum Hatası: ${err.message}`, 'error');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
+      closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
 });
@@ -1970,8 +2010,7 @@ app.post('/api/migrate', async (req, res) => {
   res.json({ success: true, message: 'Migration başlatıldı' });
 
   const log = (msg, type = 'log') => {
-    const clients = sseClients.get(sessionId) || [];
-    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+    writeSse(sessionId, { type, msg });
   };
   const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
 
@@ -3330,17 +3369,11 @@ SQL
       log(`👤 Dashboard Kullanıcı: admin / ${env.DASHBOARD_PASSWORD}`, 'success');
 
       // Done sinyali — env + domain bilgilerini gönder
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done', env, studioDomain, apiDomain })}\n\n`));
-      // SSE session temizle (memory leak önleme)
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'done', env, studioDomain, apiDomain });
 
     } catch (err) {
       log(`❌ Kritik Hata: ${err.message}`, 'error');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
-      // SSE session temizle (memory leak önleme)
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
 });
@@ -3359,8 +3392,7 @@ app.post('/api/clean-install', async (req, res) => {
   res.json({ success: true, message: 'Kurulum başlatıldı' });
 
   const log = (msg, type = 'log') => {
-    const clients = sseClients.get(sessionId) || [];
-    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+    writeSse(sessionId, { type, msg });
   };
   const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
 
@@ -3486,15 +3518,11 @@ app.post('/api/clean-install', async (req, res) => {
       log(`🔌 API:    https://${apiDomain}`, 'success');
       log(`👤 Dashboard Kullanıcı: admin / ${env.DASHBOARD_PASSWORD}`, 'success');
 
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done', env, studioDomain, apiDomain })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'done', env, studioDomain, apiDomain });
 
     } catch (err) {
       log(`❌ Kritik Hata: ${err.message}`, 'error');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
 });
@@ -3535,13 +3563,11 @@ app.post('/api/migrate-from-cloud', (req, res) => {
 
   (async () => {
     const log = (msg, level = 'info') => {
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'log', level, msg })}\n\n`));
+      writeSse(sessionId, { type: 'log', level, msg });
       console.log(`[CLOUD MIGRATE ${sessionId}] ${msg}`);
     };
     const step = (msg) => {
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'step', msg })}\n\n`));
+      writeSse(sessionId, { type: 'step', msg });
       console.log(`\n▶ [CLOUD MIGRATE] ${msg}`);
     };
 
@@ -3986,15 +4012,11 @@ echo "Yamalar basariyla uygulandi!"
       log(`🔌 API:    https://${apiDomain}`, 'success');
       log(`👤 Dashboard Kullanıcı: admin / ${env.DASHBOARD_PASSWORD}`, 'success');
 
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done', env, studioDomain, apiDomain })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'done', env, studioDomain, apiDomain });
 
     } catch (err) {
       log(`❌ Kritik Hata: ${err.message}`, 'error');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
 });
@@ -4342,8 +4364,7 @@ app.post('/api/update-settings', async (req, res) => {
   res.json({ success: true, message: 'Ayar güncellemesi başlatıldı' });
 
   const log = (msg, type = 'log') => {
-    const clients = sseClients.get(sessionId) || [];
-    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+    writeSse(sessionId, { type, msg });
   };
   const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
 
@@ -4489,12 +4510,10 @@ app.post('/api/update-settings', async (req, res) => {
       if (effApi) log(`🔌 API:    https://${effApi}`, 'success');
       if (envChanged) log(`💾 Eski .env yedeği: ${tgtDir}/docker/.env.bak-${ts}`, 'warn');
 
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done', studioDomain: effStudio, apiDomain: effApi, changedKeys })}\n\n`));
+      closeSseSession(sessionId, { type: 'done', studioDomain: effStudio, apiDomain: effApi, changedKeys });
     } catch (err) {
       log(`❌ Ayar Güncelleme Hatası: ${err.message}`, 'error');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
+      closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
 });
@@ -4664,8 +4683,7 @@ app.post('/api/setup-backup', async (req, res) => {
   
   const tgtDir = getInstanceDir(targetInstance || '1');
   const log = (msg, type = 'log') => {
-    const clients = sseClients.get(sessionId) || [];
-    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+    writeSse(sessionId, { type, msg });
   };
   const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
 
@@ -4689,14 +4707,10 @@ rm "$DUMP_FILE"
       await sshExecStream(targetHost, targetPass, `(crontab -l 2>/dev/null | grep -v "${tgtDir}/backup.sh"; echo "${cronSchedule} ${tgtDir}/backup.sh") | crontab -`, sessionId, { stepLabel: 'Cron oluşturma' });
       
       log('\n✅ Yedekleme başarıyla kuruldu!', 'success');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'done' });
     } catch (err) {
       log(`❌ Hata: ${err.message}`, 'error');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
 });
@@ -4707,8 +4721,7 @@ app.post('/api/upgrade-supabase', async (req, res) => {
   res.json({ success: true, message: 'Güncelleme başlatıldı' });
   const tgtDir = getInstanceDir(targetInstance || '1');
   const log = (msg, type = 'log') => {
-    const clients = sseClients.get(sessionId) || [];
-    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+    writeSse(sessionId, { type, msg });
   };
   const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
 
@@ -4725,14 +4738,10 @@ app.post('/api/upgrade-supabase', async (req, res) => {
       await sshExecStream(targetHost, targetPass, `cd ${tgtDir}/docker && docker compose pull && docker compose up -d`, sessionId, { stepLabel: 'Docker Update' });
       
       log('\n✅ Supabase güncellendi!', 'success');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'done' });
     } catch (err) {
       log(`❌ Hata: ${err.message}`, 'error');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
 });
@@ -4742,8 +4751,7 @@ app.post('/api/clone-local', async (req, res) => {
   const { sourceHost, sourcePass, targetHost, targetPass, anonymizeData, sessionId } = req.body;
   res.json({ success: true, message: 'Klonlama başlatıldı' });
   const log = (msg, type = 'log') => {
-    const clients = sseClients.get(sessionId) || [];
-    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+    writeSse(sessionId, { type, msg });
   };
   const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
   
@@ -4764,14 +4772,10 @@ app.post('/api/clone-local', async (req, res) => {
       await sshExecStream(targetHost, targetPass, `docker exec -i supabase-db psql -U supabase_admin postgres < /tmp/clone_${ts}.sql`, sessionId, { stepLabel: 'Restore' });
       
       log('\n✅ Klonlama başarıyla tamamlandı!', 'success');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'done' });
     } catch (err) {
       log(`❌ Hata: ${err.message}`, 'error');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
 });
@@ -4781,8 +4785,7 @@ app.post('/api/migrate-edge', async (req, res) => {
   const { sourceHost, sourcePass, targetHost, targetPass, migrateSecrets, sessionId } = req.body;
   res.json({ success: true, message: 'Edge Function aktarımı başlatıldı' });
   const log = (msg, type = 'log') => {
-    const clients = sseClients.get(sessionId) || [];
-    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+    writeSse(sessionId, { type, msg });
   };
   const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
 
@@ -4801,14 +4804,10 @@ app.post('/api/migrate-edge', async (req, res) => {
       }
       
       log('\n✅ Edge fonksiyonları başarıyla taşındı!', 'success');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'done' });
     } catch (err) {
       log(`❌ Hata: ${err.message}`, 'error');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
 });
@@ -4818,8 +4817,7 @@ app.post('/api/inspect-infra', async (req, res) => {
   const { targetHost, targetPass, targetInstance, sessionId } = req.body;
   res.json({ success: true, message: 'Tarama başlatıldı' });
   const log = (msg, type = 'log') => {
-    const clients = sseClients.get(sessionId) || [];
-    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+    writeSse(sessionId, { type, msg });
   };
   const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
 
@@ -4834,14 +4832,10 @@ app.post('/api/inspect-infra', async (req, res) => {
       log(stats.output, 'info');
       
       log('\n✅ Tarama tamamlandı!', 'success');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'done' });
     } catch (err) {
       log(`❌ Hata: ${err.message}`, 'error');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
 });
@@ -4851,8 +4845,7 @@ app.post('/api/ai-seed', async (req, res) => {
   const { targetHost, targetPass, targetTable, rowCount, prompt, targetInstance, sessionId } = req.body;
   res.json({ success: true, message: 'AI veri üretimi başlatıldı' });
   const log = (msg, type = 'log') => {
-    const clients = sseClients.get(sessionId) || [];
-    clients.forEach(c => c.write(`data: ${JSON.stringify({ type, msg })}\n\n`));
+    writeSse(sessionId, { type, msg });
   };
   const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
 
@@ -4895,14 +4888,10 @@ app.post('/api/ai-seed', async (req, res) => {
       const code = await sshExecStream(targetHost, targetPass, `echo '${b64Sql}' | base64 -d > /tmp/seed.sql && docker exec -i supabase-${targetInstance || '1'}-db psql -U supabase_admin postgres < /tmp/seed.sql`, sessionId, { stepLabel: 'SQL Insert' });
       
       log('\n✅ AI Veri üretimi başarıyla tamamlandı!', 'success');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'done' });
     } catch (err) {
       log(`❌ Hata: ${err.message}`, 'error');
-      const clients = sseClients.get(sessionId) || [];
-      clients.forEach(c => c.write(`data: ${JSON.stringify({ type: 'error', msg: err.message })}\n\n`));
-      sseClients.delete(sessionId);
+      closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
 });

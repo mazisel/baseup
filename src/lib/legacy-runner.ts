@@ -1,6 +1,6 @@
 import type { JobLogEntry, JobRequestInput } from "@/types/domain";
 
-type LogFn = (jobId: string, level: JobLogEntry["level"], message: string) => void;
+type LogFn = (jobId: string, level: JobLogEntry["level"], message: string) => Promise<void> | void;
 
 const LEGACY_CONNECT_TIMEOUT_MS = 10_000;
 
@@ -34,8 +34,8 @@ export async function runLegacyBridgeJob(jobId: string, input: JobRequestInput, 
   const baseUrl = process.env.LEGACY_WEBAPP_URL;
   if (!baseUrl) throw new Error("LEGACY_WEBAPP_URL tanımlı değil.");
 
-  addLog(jobId, "step", "Legacy taşıma motoru (bridge) başlatıldı");
-  addLog(jobId, "info", `Hedef ortam: ${baseUrl}`);
+  await addLog(jobId, "step", "Legacy taşıma motoru (bridge) başlatıldı");
+  await addLog(jobId, "info", `Hedef ortam: ${baseUrl}`);
   await assertLegacyReachable(baseUrl);
 
   if (STREAMING_ENDPOINTS[input.type]) {
@@ -75,7 +75,7 @@ async function runStreamingLegacyJob(
     throw new Error(`Legacy endpoint HTTP ${response.status}`);
   }
 
-  addLog(jobId, "info", "İşlem legacy sunucusu tarafından kabul edildi, canlı kayıtlar bekleniyor...");
+  await addLog(jobId, "info", "İşlem legacy sunucusu tarafından kabul edildi, canlı kayıtlar bekleniyor...");
   await readLegacySse(jobId, new URL(`/api/logs/${legacySessionId}`, baseUrl), addLog);
 }
 
@@ -101,8 +101,8 @@ async function runJsonLegacyJob(
     throw new Error(data?.error || `Legacy endpoint HTTP ${response.status}`);
   }
 
-  addLog(jobId, "success", "Legacy analiz tamamlandı.");
-  addLog(jobId, "info", JSON.stringify(data).slice(0, 1800));
+  await addLog(jobId, "success", "Legacy analiz tamamlandı.");
+  await addLog(jobId, "info", JSON.stringify(data).slice(0, 1800));
 }
 
 async function readLegacySse(jobId: string, url: URL, addLog: LogFn) {
@@ -137,7 +137,7 @@ async function readLegacySse(jobId: string, url: URL, addLog: LogFn) {
       if (payload.type === "error") throw new Error(payload.msg || "Legacy job hata verdi.");
 
       const level = normalizeLegacyLevel(payload.type || payload.level);
-      if (payload.msg) addLog(jobId, level, payload.msg);
+      if (payload.msg) await addLog(jobId, level, payload.msg);
     }
   }
 }
