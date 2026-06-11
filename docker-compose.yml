@@ -23,8 +23,10 @@ services:
       - PAYTR_MERCHANT_KEY=${PAYTR_MERCHANT_KEY}
       - PAYTR_MERCHANT_SALT=${PAYTR_MERCHANT_SALT}
       - SAAS_RUNNER_MODE=${SAAS_RUNNER_MODE:-legacy}
-      - LEGACY_WEBAPP_URL=${LEGACY_WEBAPP_URL:-http://localhost:4567}
+      - LEGACY_WEBAPP_URL=${LEGACY_WEBAPP_URL:-http://host.docker.internal:4567}
       - ADMIN_EMAILS=${ADMIN_EMAILS}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - redis
     restart: unless-stopped
