@@ -16,13 +16,15 @@ const supabase = createClient(
 );
 
 export default async function BillingPage({ searchParams }: { searchParams: Promise<{ packageId?: string, status?: string }> }) {
-  const user = await getCurrentUser();
+  const [user, { locale }, headersList] = await Promise.all([
+    getCurrentUser(),
+    getPreferences(),
+    headers()
+  ]);
+  
   if (!user) return null;
 
-  const { locale } = await getPreferences();
   const copy = getCopy(locale).billing;
-
-  const headersList = await headers();
   const isTurkey = headersList.get("x-vercel-ip-country") === "TR" || headersList.get("accept-language")?.includes("tr") || false;
 
   const { packageId: targetPackageId, status } = await searchParams;
