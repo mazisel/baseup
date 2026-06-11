@@ -1267,6 +1267,38 @@ textarea:focus {
   padding: 12px;
 }
 
+.stage-strip {
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 12px 14px;
+}
+
+.stage-strip span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.stage-strip strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.stage-strip code {
+  background: var(--green-soft);
+  border-radius: 999px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 4px 9px;
+}
+
 .log-shell {
   background: var(--terminal-bg);
   border-radius: 8px;

@@ -306,6 +306,254 @@ function quoteQualifiedName(schemaName, tableName) {
   return `${quoteIdentifier(schemaName)}.${quoteIdentifier(tableName)}`;
 }
 
+const SELF_HOSTED_MIGRATION_STAGES = {
+  checking_source: 'Kaynak sunucu ön kontrolü',
+  checking_target: 'Hedef sunucu ön kontrolü',
+  creating_backup: 'Kaynak yedekleri oluşturuluyor',
+  transferring_files: 'Dosyalar hedef sunucuya aktarılıyor',
+  restoring_database: 'Veritabanı geri yükleniyor',
+  restoring_storage: 'Storage geri yükleniyor',
+  starting_services: 'Hedef servisler başlatılıyor',
+  verifying: 'Son doğrulama yapılıyor'
+};
+
+const TARGET_MIN_FREE_DISK_GB = 10;
+const TARGET_MIN_RAM_GB = 2;
+
+function emitMigrationStage(log, stageKey) {
+  const label = SELF_HOSTED_MIGRATION_STAGES[stageKey] || stageKey;
+  log(`Aşama: ${stageKey} — ${label}`, 'step');
+}
+
+function buildSourcePreflightCommand(targetHost) {
+  return `
+set +e
+emit() { printf 'PREFLIGHT|%s|%s\\n' "$1" "$2"; }
+
+if command -v docker >/dev/null 2>&1; then
+  emit PASS "Kaynak sunucuda Docker komutu var"
+else
+  emit FAIL "Kaynak sunucuda Docker kurulu değil"
+fi
+
+if docker info >/dev/null 2>&1; then
+  emit PASS "Kaynak sunucuda Docker çalışıyor"
+else
+  emit FAIL "Kaynak sunucuda Docker çalışmıyor veya root Docker'a erişemiyor"
+fi
+
+SRC_DIR=""
+for d in /root/supabase /home/supabase /opt/supabase /var/supabase /srv/supabase; do
+  if [ -f "$d/docker/.env" ] || [ -f "$d/docker/docker-compose.yml" ]; then
+    SRC_DIR="$d"
+    break
+  fi
+done
+
+if [ -n "$SRC_DIR" ]; then
+  emit PASS "Kaynak Supabase kurulumu bulundu: $SRC_DIR"
+  if [ -f "$SRC_DIR/docker/.env" ]; then
+    emit PASS "Kaynak .env dosyası mevcut"
+  else
+    emit FAIL "Kaynak Supabase .env dosyası bulunamadı"
+  fi
+else
+  emit FAIL "Kaynak sunucuda Supabase kurulumu bulunamadı"
+fi
+
+if docker ps --format '{{.Names}}' | grep -qx 'supabase-db'; then
+  emit PASS "Kaynak supabase-db container çalışıyor"
+else
+  emit FAIL "Kaynak supabase-db container çalışmıyor"
+fi
+
+BAD_CONTAINERS=$(docker ps -a --format '{{.Names}}|{{.Status}}' 2>/dev/null | grep -Ei '^supabase|realtime|storage|auth|kong' | grep -Eiv 'Up|healthy' | head -n 8)
+if [ -z "$BAD_CONTAINERS" ]; then
+  emit PASS "Kaynak Supabase container durumları sağlıklı görünüyor"
+else
+  emit WARN "Kaynakta sağlıksız/durmuş container olabilir: $(printf '%s' "$BAD_CONTAINERS" | tr '\\n' '; ')"
+fi
+
+export TARGET_HOST=${shellEscape(targetHost || '')}
+if [ -n "$TARGET_HOST" ] && timeout 8 bash -lc 'echo > /dev/tcp/"$TARGET_HOST"/22' >/dev/null 2>&1; then
+  emit PASS "Kaynak sunucudan hedef SSH portuna erişiliyor"
+else
+  emit FAIL "Kaynak ve hedef sunucu arasında SSH erişimi yok"
+fi
+`;
+}
+
+function buildTargetPreflightCommand(targetInstance) {
+  const instanceId = targetInstance || '1';
+  const tgtDir = getInstanceDir(instanceId);
+  const ports = getInstancePorts(instanceId);
+  const requiredPorts = [
+    ports.POSTGRES_PORT,
+    ports.POOLER_PROXY_PORT_TRANSACTION,
+    ports.KONG_HTTP_PORT,
+    ports.KONG_HTTPS_PORT,
+    ports.SMTP_PORT,
+    ports.STUDIO_PORT
+  ];
+
+  return `
+set +e
+emit() { printf 'PREFLIGHT|%s|%s\\n' "$1" "$2"; }
+
+FREE_KB=$(df -Pk / 2>/dev/null | awk 'NR==2 {print $4}')
+FREE_GB=$((FREE_KB / 1024 / 1024))
+if [ "$FREE_GB" -ge ${TARGET_MIN_FREE_DISK_GB} ]; then
+  emit PASS "Hedef disk alanı yeterli: ${FREE_GB}GB boş"
+else
+  emit FAIL "Hedefte yeterli disk alanı yok: ${FREE_GB}GB boş (en az ${TARGET_MIN_FREE_DISK_GB}GB önerilir)"
+fi
+
+MEM_KB=$(awk '/MemTotal/ {print $2}' /proc/meminfo 2>/dev/null)
+MEM_GB=$((MEM_KB / 1024 / 1024))
+if [ "$MEM_GB" -ge ${TARGET_MIN_RAM_GB} ]; then
+  emit PASS "Hedef RAM yeterli: ${MEM_GB}GB"
+else
+  emit FAIL "Hedefte yeterli RAM yok: ${MEM_GB}GB (en az ${TARGET_MIN_RAM_GB}GB önerilir)"
+fi
+
+if command -v docker >/dev/null 2>&1; then
+  emit PASS "Hedef sunucuda Docker komutu var"
+  if docker info >/dev/null 2>&1; then
+    emit PASS "Hedef sunucuda Docker çalışıyor"
+  else
+    emit FAIL "Hedef sunucuda Docker komutları çalıştırılamıyor"
+  fi
+else
+  emit WARN "Hedef sunucuda Docker kurulu değil; kurulum adımında otomatik kurulacak"
+fi
+
+BUSY_PORTS=""
+for port in ${requiredPorts.join(' ')}; do
+  if ss -tlnH 2>/dev/null | awk '{print $4}' | grep -Eq "(^|:)$port$"; then
+    BUSY_PORTS="$BUSY_PORTS $port"
+  fi
+done
+if [ -z "$BUSY_PORTS" ]; then
+  emit PASS "Hedefte Supabase için gerekli instance portları boş"
+else
+  emit FAIL "Hedefte gerekli portlar dolu:$BUSY_PORTS"
+fi
+
+if [ -f ${shellEscape(`${tgtDir}/docker/docker-compose.yml`)} ]; then
+  if command -v docker >/dev/null 2>&1 && (cd ${shellEscape(`${tgtDir}/docker`)} && docker compose config >/dev/null 2>&1); then
+    emit WARN "Hedefte mevcut compose dosyası var; kurulum sırasında yedeklenip güncellenecek"
+  else
+    emit FAIL "Hedefte eski/uyumsuz compose dosyası var"
+  fi
+else
+  emit PASS "Hedefte mevcut Supabase compose dosyası yok"
+fi
+`;
+}
+
+async function runPreflightCheck(title, host, password, command, log) {
+  const result = await sshExec(host, password, command);
+  const findings = String(result.output || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.startsWith('PREFLIGHT|'))
+    .map(line => {
+      const [, status, ...messageParts] = line.split('|');
+      return {
+        status,
+        message: messageParts.join('|')
+      };
+    });
+
+  if (!findings.length) {
+    throw new Error(`${title} ön kontrol çıktısı okunamadı`);
+  }
+
+  const failures = [];
+  for (const finding of findings) {
+    if (finding.status === 'PASS') {
+      log(`✅ ${finding.message}`, 'success');
+    } else if (finding.status === 'WARN') {
+      log(`⚠️ ${finding.message}`, 'warn');
+    } else {
+      failures.push(finding.message);
+      log(`❌ ${finding.message}`, 'error');
+    }
+  }
+
+  if (failures.length) {
+    throw new Error(`${title} ön kontrol başarısız: ${failures.join(' | ')}`);
+  }
+}
+
+function classifyMigrationFailure(message) {
+  const text = String(message || '').toLowerCase();
+  if (/ssh|handshake|timeout|timed out|econn|no response|bağlan/.test(text)) return 'Bağlantı hatası';
+  if (/preflight|ön kontrol|disk|ram|port|docker|compose|supabase kurulumu|\.env/.test(text)) return 'Ön kontrol hatası';
+  if (/pg_dump|dump|scp|kopya|transfer|storage|volume|env yaz/.test(text)) return 'Veri aktarım hatası';
+  if (/restore|psql|container|restart|unhealthy|health|kong|auth|realtime|studio|api|endpoint/.test(text)) return 'Restore sonrası hata';
+  return 'Bilinmeyen hata';
+}
+
+function logMigrationFailureGuidance(log, stageKey, err, targetInstance) {
+  const message = err instanceof Error ? err.message : String(err);
+  const stageLabel = SELF_HOSTED_MIGRATION_STAGES[stageKey] || stageKey;
+  const errorClass = classifyMigrationFailure(message);
+  const tgtDir = getInstanceDir(targetInstance);
+
+  log(`Hata sınıfı: ${errorClass}`, 'error');
+  log(`İşlem şu aşamada durdu: ${stageKey} — ${stageLabel}`, 'error');
+  log('Kaynak sunucu silinmedi/değiştirilmedi. DNS migration tamamen doğrulanmadan değiştirilmemeli.', 'warn');
+
+  if (['transferring_files', 'restoring_database', 'restoring_storage', 'starting_services', 'verifying'].includes(stageKey)) {
+    log(`Hedefte yarım kalan servisleri durdurmak için: cd ${tgtDir}/docker && docker compose down`, 'warn');
+    log(`Volume/veri silme gerekiyorsa önce manuel yedek alın; ardından hedefte ${tgtDir}/docker/volumes dizinini bilinçli olarak temizleyin.`, 'warn');
+  }
+
+  log('Rollback: DNS eski sunucuda kalmalı veya eski sunucuya geri çevrilmeli; kaynak Supabase çalışır durumda bırakıldı.', 'warn');
+}
+
+function isBlankSecret(value) {
+  return !String(value || '').trim();
+}
+
+function generateSupabaseEnvDefaults(existingEnv = {}) {
+  const env = { ...existingEnv };
+
+  if (isBlankSecret(env.JWT_SECRET)) {
+    env.JWT_SECRET = crypto.randomBytes(32).toString('hex');
+  }
+  if (isBlankSecret(env.POSTGRES_PASSWORD)) {
+    env.POSTGRES_PASSWORD = crypto.randomBytes(20).toString('hex');
+  }
+  if (isBlankSecret(env.ANON_KEY)) {
+    env.ANON_KEY = generateJWT('anon', env.JWT_SECRET);
+  }
+  if (isBlankSecret(env.SERVICE_ROLE_KEY)) {
+    env.SERVICE_ROLE_KEY = generateJWT('service_role', env.JWT_SECRET);
+  }
+  if (isBlankSecret(env.DASHBOARD_PASSWORD)) {
+    env.DASHBOARD_PASSWORD = crypto.randomBytes(12).toString('base64').replace(/[/+=]/g, '').substring(0, 16);
+  }
+  if (isBlankSecret(env.SECRET_KEY_BASE)) {
+    env.SECRET_KEY_BASE = crypto.randomBytes(48).toString('base64').replace(/\n/g, '');
+  }
+  if (isBlankSecret(env.VAULT_ENC_KEY)) {
+    env.VAULT_ENC_KEY = crypto.randomBytes(16).toString('hex');
+  }
+  if (isBlankSecret(env.PG_META_CRYPTO_KEY)) {
+    env.PG_META_CRYPTO_KEY = crypto.randomBytes(16).toString('hex');
+  }
+  if (isBlankSecret(env.LOGFLARE_PUBLIC_ACCESS_TOKEN)) {
+    env.LOGFLARE_PUBLIC_ACCESS_TOKEN = crypto.randomBytes(32).toString('hex');
+  }
+  if (isBlankSecret(env.LOGFLARE_PRIVATE_ACCESS_TOKEN)) {
+    env.LOGFLARE_PRIVATE_ACCESS_TOKEN = crypto.randomBytes(32).toString('hex');
+  }
+
+  return env;
+}
+
 function normalizeExpression(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
@@ -2015,9 +2263,16 @@ app.post('/api/migrate', async (req, res) => {
   const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
 
   (async () => {
+    let currentStage = 'checking_source';
+    const setStage = (stageKey) => {
+      currentStage = stageKey;
+      emitMigrationStage(log, stageKey);
+    };
+
     try {
       const ts = Date.now();
       const escapedTargetPass = String(targetPass || '').replace(/'/g, "'\\''");
+      const escapedTargetHost = shellEscape(targetHost || '');
       const optionalStreamOptions = (stepLabel) => continueOnMinorErrors
         ? { stepLabel, allowContinueOnTransientError: true, continueResult: 0 }
         : { stepLabel };
@@ -2033,24 +2288,26 @@ app.post('/api/migrate', async (req, res) => {
         log('⚙️ Geçici SSH sorunlarında opsiyonel adımlar uyarı verip atlanacak.', 'warn');
       }
 
-      // ─── Bağlantı ön-testi ────────────────────────────────────────
-      log('🔍 Kaynak sunucu bağlantısı test ediliyor...');
-      try {
-        const srcTest = await sshExec(sourceHost, sourcePass, 'echo OK');
-        if (!srcTest.output.includes('OK')) throw new Error('SSH yanıt vermedi');
-        log('✅ Kaynak sunucu bağlantısı tamam');
-      } catch (e) {
-        throw new Error(`Kaynak sunucuya bağlanılamadı: ${e.message}`);
-      }
+      // ─── Zorunlu preflight ────────────────────────────────────────
+      setStage('checking_source');
+      log('🔍 Kaynak sunucu ön kontrolü başlatıldı');
+      await runPreflightCheck(
+        'Kaynak sunucu',
+        sourceHost,
+        sourcePass,
+        buildSourcePreflightCommand(targetHost),
+        log
+      );
 
-      log('🔍 Hedef sunucu bağlantısı test ediliyor...');
-      try {
-        const tgtTest = await sshExec(targetHost, targetPass, 'echo OK');
-        if (!tgtTest.output.includes('OK')) throw new Error('SSH yanıt vermedi');
-        log('✅ Hedef sunucu bağlantısı tamam');
-      } catch (e) {
-        throw new Error(`Hedef sunucuya bağlanılamadı: ${e.message}`);
-      }
+      setStage('checking_target');
+      log('🔍 Hedef sunucu ön kontrolü başlatıldı');
+      await runPreflightCheck(
+        'Hedef sunucu',
+        targetHost,
+        targetPass,
+        buildTargetPreflightCommand(targetInstance),
+        log
+      );
 
       // ─── Kaynak Supabase sürüm/commit tespiti (best effort) ──────
       log('🔎 Kaynak Supabase sürümü tespit ediliyor...');
@@ -2119,16 +2376,17 @@ app.post('/api/migrate', async (req, res) => {
       }
 
       // ADIM 1: PostgreSQL Dump ─── KRİTİK
+      setStage('creating_backup');
       const dumpFlag = schemaOnly ? '--schema-only' : '';
       const dumpLabel = schemaOnly ? 'Şema (tablo yapısı) yedekleniyor' : 'Tam veritabanı yedekleniyor';
       step(`ADIM 1/6 — ${dumpLabel}`);
       log(schemaOnly ? '📐 Sadece şema kopyalanacak — veriler aktarılmayacak' : '📦 Tüm veriler dahil kopyalanıyor', 'warn');
 
       const dumpCode = await sshExecStream(sourceHost, sourcePass,
-        `docker exec supabase-db pg_dump -U supabase_admin ${dumpFlag} --no-owner --no-privileges postgres > /tmp/supabase_pgdump_${ts}.sql 2>/tmp/pgdump_stderr_${ts}.log && echo "Dump boyutu: $(ls -lh /tmp/supabase_pgdump_${ts}.sql | awk '{print $5}')" && if [ -s /tmp/pgdump_stderr_${ts}.log ]; then echo "⚠️ pg_dump uyarıları:"; cat /tmp/pgdump_stderr_${ts}.log; fi`,
+        `docker exec supabase-db pg_dump -U supabase_admin ${dumpFlag} --no-owner --no-privileges postgres > /tmp/supabase_pgdump_${ts}.sql 2>/tmp/pgdump_stderr_${ts}.log && [ -s /tmp/supabase_pgdump_${ts}.sql ] && echo "Dump boyutu: $(ls -lh /tmp/supabase_pgdump_${ts}.sql | awk '{print $5}')" && if [ -s /tmp/pgdump_stderr_${ts}.log ]; then echo "⚠️ pg_dump uyarıları:"; cat /tmp/pgdump_stderr_${ts}.log; fi`,
         sessionId
       );
-      if (dumpCode !== 0) throw new Error(`pg_dump başarısız (exit: ${dumpCode}). "supabase-db" container'ı çalışıyor mu?`);
+      if (dumpCode !== 0) throw new Error(`Database dump alınamadı veya dump dosyası boş (exit: ${dumpCode}). "supabase-db" container'ı çalışıyor mu?`);
 
       // Şema modunda bucket tanımlarını ayrıca al (opsiyonel)
       if (schemaOnly) {
@@ -2318,22 +2576,27 @@ app.post('/api/migrate', async (req, res) => {
       }
 
       // ADIM 5: Dump'ı kopyala ─── KRİTİK
+      setStage('transferring_files');
       step('ADIM 5/6 — Veritabanı hedef sunucuya aktarılıyor');
       log('💾 DB dump hedef sunucuya kopyalanıyor (bu biraz sürebilir)...');
 
       const scpCode = await sshExecStream(sourceHost, sourcePass,
-        `sshpass -p '${escapedTargetPass}' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/supabase_pgdump_${ts}.sql root@${targetHost}:/tmp/ 2>&1 || \
-	         (apt-get install -y -qq sshpass && sshpass -p '${escapedTargetPass}' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/supabase_pgdump_${ts}.sql root@${targetHost}:/tmp/) && \
-	         echo "DB dump kopyalandı"`,
+        `sshpass -p '${escapedTargetPass}' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/supabase_pgdump_${ts}.sql root@${escapedTargetHost}:/tmp/ 2>&1 || \
+	         (apt-get install -y -qq sshpass && sshpass -p '${escapedTargetPass}' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/supabase_pgdump_${ts}.sql root@${escapedTargetHost}:/tmp/) && \
+	         src_size=$(stat -c%s /tmp/supabase_pgdump_${ts}.sql) &&
+	         tgt_size=$(sshpass -p '${escapedTargetPass}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${escapedTargetHost} "stat -c%s /tmp/supabase_pgdump_${ts}.sql") &&
+	         [ "$src_size" = "$tgt_size" ] &&
+	         [ "$tgt_size" -gt 0 ] &&
+	         echo "DB dump kopyalandı ve boyut doğrulandı (\${tgt_size} byte)"`,
         sessionId
       );
-      if (scpCode !== 0) throw new Error(`DB dump kopyalanamadı (exit: ${scpCode}). Kaynak → hedef arası SSH erişimi var mı?`);
+      if (scpCode !== 0) throw new Error(`Dump transfer edilemedi veya eksik aktarıldı (exit: ${scpCode}). Kaynak → hedef arası SSH erişimi var mı?`);
 
       // Storage kopyala — OPSİYONEL
       if (!schemaOnly) {
         try {
           await sshExecStream(sourceHost, sourcePass,
-            `if [ -f /tmp/supabase_storage_${ts}.tar.gz ]; then apt-get install -y -qq sshpass 2>/dev/null; sshpass -p '${escapedTargetPass}' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/supabase_storage_${ts}.tar.gz root@${targetHost}:/tmp/ && echo "Storage kopyalandı"; else echo "Storage dosyası yok, atlanıyor"; fi`,
+            `if [ -f /tmp/supabase_storage_${ts}.tar.gz ]; then apt-get install -y -qq sshpass 2>/dev/null; sshpass -p '${escapedTargetPass}' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/supabase_storage_${ts}.tar.gz root@${escapedTargetHost}:/tmp/ && echo "Storage kopyalandı"; else echo "Storage dosyası yok, atlanıyor"; fi`,
             sessionId,
             optionalStreamOptions('Storage kopyalama adımı')
           );
@@ -2346,7 +2609,7 @@ app.post('/api/migrate', async (req, res) => {
       if (schemaOnly) {
         try {
           const bucketScpCode = await sshExecStream(sourceHost, sourcePass,
-            `if [ -f /tmp/supabase_buckets_${ts}.sql ]; then apt-get install -y -qq sshpass 2>/dev/null; sshpass -p '${escapedTargetPass}' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/supabase_buckets_${ts}.sql root@${targetHost}:/tmp/ && echo "Bucket dump kopyalandı"; else echo "Bucket dump yok, atlanıyor"; fi`,
+            `if [ -f /tmp/supabase_buckets_${ts}.sql ]; then apt-get install -y -qq sshpass 2>/dev/null; sshpass -p '${escapedTargetPass}' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/supabase_buckets_${ts}.sql root@${escapedTargetHost}:/tmp/ && echo "Bucket dump kopyalandı"; else echo "Bucket dump yok, atlanıyor"; fi`,
             sessionId,
             optionalStreamOptions('Bucket dump kopyalama adımı')
           );
@@ -2359,7 +2622,7 @@ app.post('/api/migrate', async (req, res) => {
           const storageMigScpCode = await sshExecStream(sourceHost, sourcePass,
             `if [ -f /tmp/supabase_storage_migrations_${ts}.sql ]; then \
 	               apt-get install -y -qq sshpass 2>/dev/null; \
-	               sshpass -p '${escapedTargetPass}' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/supabase_storage_migrations_${ts}.sql root@${targetHost}:/tmp/ && \
+	               sshpass -p '${escapedTargetPass}' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/supabase_storage_migrations_${ts}.sql root@${escapedTargetHost}:/tmp/ && \
 	               echo "Storage migrations dump kopyalandı"; \
 	             else \
 	               echo "storage.migrations dump dosyası bulunamadı"; \
@@ -2397,6 +2660,7 @@ app.post('/api/migrate', async (req, res) => {
            fi`
         : `echo "Storage migration geçmişi importu gerekmiyor"`;
 
+      setStage('restoring_database');
       const restoreCode = await sshExecStream(targetHost, targetPass,
          `cd ${tgtDir}/docker &&
 		         if [ -f docker-compose.yml ]; then
@@ -2457,6 +2721,10 @@ app.post('/api/migrate', async (req, res) => {
         sessionId
       );
       if (restoreCode !== 0) throw new Error(`DB restore başarısız (exit: ${restoreCode}). "docker exec supabase-${targetInstance}-db psql -U supabase_admin -d postgres" komutu ile manuel kontrol edin.`);
+      if (!schemaOnly) {
+        setStage('restoring_storage');
+        log('✅ Storage geri yükleme restore adımı içinde tamamlandı');
+      }
 
       // Schema-only modunda storage.migrations gerçekten geldi mi doğrula
       if (schemaOnly && sourceStorageMigrationsExists && Number.isInteger(sourceStorageMigrationsCount)) {
@@ -2698,6 +2966,7 @@ app.post('/api/migrate', async (req, res) => {
       }
 
       // ADIM 6: Tüm servisler ─── OPSİYONEL (DB zaten ayakta)
+      setStage('starting_services');
       step('ADIM 6/6 — Tüm servisler başlatılıyor');
       try {
         const upCode = await sshExecStream(targetHost, targetPass,
@@ -2800,6 +3069,7 @@ app.post('/api/migrate', async (req, res) => {
       }
 
       // Kritik servisler gerçekten ayakta mı? (restart loop / unhealthy kontrolü)
+      setStage('verifying');
       const criticalServices = [
         `supabase-${targetInstance}-db`,
         `supabase-${targetInstance}-kong`,
@@ -3373,6 +3643,7 @@ SQL
 
     } catch (err) {
       log(`❌ Kritik Hata: ${err.message}`, 'error');
+      logMigrationFailureGuidance(log, currentStage, err, targetInstance);
       closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
@@ -4023,6 +4294,7 @@ echo "Yamalar basariyla uygulandi!"
 
 // ─── YARDIMCI FONKSİYONLAR ────────────────────────────────────
 function buildEnvFile(env, studioDomain, apiDomain, siteUrl, instanceId = '1') {
+  env = Object.assign(env || {}, generateSupabaseEnvDefaults(env));
   const ports = getInstancePorts(instanceId);
   return `############
 # Project Configuration

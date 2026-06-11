@@ -72,6 +72,8 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
     shell.scrollTop = shell.scrollHeight;
   }, [logs]);
 
+  const currentStage = useMemo(() => getCurrentStage(logs), [logs]);
+
   const summaryItems = useMemo(() => {
     return [
       [copy.job.summary.runner, job.summary?.runnerMode],
@@ -126,6 +128,14 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
         ))}
       </div>
 
+      {currentStage ? (
+        <div className="stage-strip">
+          <span>{locale === "tr" ? "Mevcut aşama" : "Current stage"}</span>
+          <strong>{currentStage.label}</strong>
+          <code>{currentStage.key}</code>
+        </div>
+      ) : null}
+
       {job.errorMessage ? <p className="notice">{job.errorMessage}</p> : null}
       {retryError ? <p className="notice" role="alert">{retryError}</p> : null}
 
@@ -147,6 +157,27 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
       </section>
     </div>
   );
+}
+
+function getCurrentStage(logs: JobEventRow[]) {
+  for (const log of [...logs].reverse()) {
+    const stageMatch = log.message.match(/^Aşama:\s*([a-z_]+)\s+—\s+(.+)$/);
+    if (stageMatch) {
+      return {
+        key: stageMatch[1],
+        label: stageMatch[2]
+      };
+    }
+
+    const stoppedMatch = log.message.match(/^İşlem şu aşamada durdu:\s*([a-z_]+)\s+—\s+(.+)$/);
+    if (stoppedMatch) {
+      return {
+        key: stoppedMatch[1],
+        label: stoppedMatch[2]
+      };
+    }
+  }
+  return null;
 }
 
 function formatFlags(flags: string[] | undefined, locale: Locale) {

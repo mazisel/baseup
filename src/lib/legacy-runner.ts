@@ -1,3 +1,4 @@
+import { createHmac, randomBytes } from "node:crypto";
 import type { JobLogEntry, JobRequestInput } from "@/types/domain";
 
 type LogFn = (jobId: string, level: JobLogEntry["level"], message: string) => Promise<void> | void;
@@ -172,13 +173,7 @@ function buildLegacyConnectionMessage(baseUrl: string, error: unknown) {
 }
 
 function buildLegacyBody(input: JobRequestInput, sessionId: string) {
-  const env = {
-    POSTGRES_PASSWORD: "",
-    JWT_SECRET: "",
-    ANON_KEY: "",
-    SERVICE_ROLE_KEY: "",
-    DASHBOARD_PASSWORD: ""
-  };
+  const env = generateSupabaseEnv();
 
   switch (input.type) {
     case "self_hosted_migration":
@@ -341,6 +336,35 @@ function buildLegacyBody(input: JobRequestInput, sessionId: string) {
         sessionId
       };
   }
+}
+
+function generateSupabaseEnv() {
+  const jwtSecret = randomBytes(32).toString("hex");
+
+  return {
+    POSTGRES_PASSWORD: randomBytes(20).toString("hex"),
+    JWT_SECRET: jwtSecret,
+    ANON_KEY: generateJwt("anon", jwtSecret),
+    SERVICE_ROLE_KEY: generateJwt("service_role", jwtSecret),
+    DASHBOARD_PASSWORD: randomBytes(12).toString("base64").replace(/[/+=]/g, "").slice(0, 16),
+    SECRET_KEY_BASE: randomBytes(48).toString("base64").replace(/\n/g, ""),
+    VAULT_ENC_KEY: randomBytes(16).toString("hex"),
+    PG_META_CRYPTO_KEY: randomBytes(16).toString("hex"),
+    LOGFLARE_PUBLIC_ACCESS_TOKEN: randomBytes(32).toString("hex"),
+    LOGFLARE_PRIVATE_ACCESS_TOKEN: randomBytes(32).toString("hex")
+  };
+}
+
+function generateJwt(role: "anon" | "service_role", secret: string) {
+  const header = Buffer.from(JSON.stringify({ typ: "JWT", alg: "HS256" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({
+    role,
+    iss: "supabase",
+    iat: 1768218500,
+    exp: 2083578500
+  })).toString("base64url");
+  const signature = createHmac("sha256", secret).update(`${header}.${payload}`).digest("base64url");
+  return `${header}.${payload}.${signature}`;
 }
 
 function normalizeLegacyLevel(level: string): JobLogEntry["level"] {
