@@ -5,10 +5,12 @@ services:
     # (.github/workflows/build-images.yml). NEXT_PUBLIC_* değerleri
     # oradaki build sırasında gömülür — repo Variables'tan tanımlanır.
     image: ghcr.io/mazisel/baseup-web:latest
-    network_mode: host
+    ports:
+      # Host portu doluysa (örn. Supabase Studio 3000 kullanır) WEB_PORT ile değiştirin
+      - "${WEB_PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
-      - REDIS_HOST=localhost
+      - REDIS_HOST=redis
       - REDIS_PORT=6379
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
@@ -21,28 +23,32 @@ services:
       - PAYTR_MERCHANT_KEY=${PAYTR_MERCHANT_KEY}
       - PAYTR_MERCHANT_SALT=${PAYTR_MERCHANT_SALT}
       - SAAS_RUNNER_MODE=${SAAS_RUNNER_MODE:-legacy}
-      - LEGACY_WEBAPP_URL=${LEGACY_WEBAPP_URL:-http://localhost:4567}
+      - LEGACY_WEBAPP_URL=${LEGACY_WEBAPP_URL:-http://legacy:4567}
       - ADMIN_EMAILS=${ADMIN_EMAILS}
     depends_on:
       - redis
+      - legacy
     restart: unless-stopped
 
   legacy:
     image: ghcr.io/mazisel/baseup-legacy:latest
     # GÜVENLİK: Bu API auth içermez ve müşteri sunucularında root SSH
-    # komutları çalıştırır. network_mode: host kullanılıyor çünkü
-    # Docker bridge ağı dış sunuculara SSH bağlantısını engelleyebilir.
-    # Port (4567) sunucuda doğrudan açılır — UFW ile dışarıdan erişimi kapatın.
-    network_mode: host
+    # komutları çalıştırır. Port bilinçli olarak publish EDİLMİYOR —
+    # yalnızca compose iç ağından (http://legacy:4567) erişilir.
     restart: unless-stopped
 
   redis:
     image: redis:alpine
-    network_mode: host
     # Port bilinçli olarak publish edilmiyor — yalnızca iç ağdan erişilir.
     volumes:
       - redis_data:/data
     restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1400
 
 volumes:
   redis_data:
