@@ -554,6 +554,37 @@ function generateSupabaseEnvDefaults(existingEnv = {}) {
   return env;
 }
 
+function buildEnvSecretValidationCommand(envPath) {
+  const requiredKeys = [
+    'POSTGRES_PASSWORD',
+    'JWT_SECRET',
+    'ANON_KEY',
+    'SERVICE_ROLE_KEY',
+    'DASHBOARD_PASSWORD',
+    'SECRET_KEY_BASE',
+    'VAULT_ENC_KEY',
+    'PG_META_CRYPTO_KEY',
+    'LOGFLARE_PUBLIC_ACCESS_TOKEN',
+    'LOGFLARE_PRIVATE_ACCESS_TOKEN'
+  ];
+
+  return `
+ENV_FILE=${shellEscape(envPath)}
+missing=""
+for key in ${requiredKeys.join(' ')}; do
+  value=$(grep -E "^$key=" "$ENV_FILE" 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d '[:space:]"')
+  if [ -z "$value" ]; then
+    missing="$missing $key"
+  fi
+done
+if [ -n "$missing" ]; then
+  echo "❌ .env kritik secret değerleri boş:$missing"
+  exit 11
+fi
+echo ".env kritik secret kontrolü tamam"
+`;
+}
+
 function normalizeExpression(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
@@ -2529,11 +2560,16 @@ app.post('/api/migrate', async (req, res) => {
 
       // .env yaz — KRİTİK
       const escapedEnv = envContent.replace(/'/g, "'\\''");
+      const envSecretValidationCommand = buildEnvSecretValidationCommand(`${tgtDir}/docker/.env`);
       const envWriteCode = await sshExecStream(targetHost, targetPass,
         `mkdir -p ${tgtDir}/docker && printf '%s' '${escapedEnv}' > ${tgtDir}/docker/.env && echo ".env yazıldı ($(wc -l < ${tgtDir}/docker/.env) satır)"`,
         sessionId
       );
       if (envWriteCode !== 0) throw new Error(`.env yazılamadı (exit: ${envWriteCode}). Disk dolu mu?`);
+      const envSecretValidationCode = await sshExecStream(targetHost, targetPass, envSecretValidationCommand, sessionId);
+      if (envSecretValidationCode !== 0) {
+        throw new Error(`.env kritik secret kontrolü başarısız (exit: ${envSecretValidationCode}). POSTGRES_PASSWORD/JWT/SERVICE_ROLE değerleri boş olamaz.`);
+      }
 
       // Nginx config — OPSİYONEL
       try {
@@ -2670,6 +2706,7 @@ app.post('/api/migrate', async (req, res) => {
 		           sed -i -E "s#image:[[:space:]]*public[.]ecr[.]aws/supabase/vector:#image: timberio/vector:#g" docker-compose.yml &&
 		           sed -i -E "s#image:[[:space:]]*public[.]ecr[.]aws/supabase/#image: supabase/#g" docker-compose.yml;
 		         fi &&
+             ${envSecretValidationCommand}
 		         echo "Önceki compose servisleri durduruluyor (temiz restore için)..." &&
 		         (docker compose down -v --remove-orphans >/dev/null 2>&1 || true) &&
 		         echo "Eski DB verisi temizleniyor (yeni POSTGRES_PASSWORD ile sıfırdan init için)..." &&
@@ -3710,12 +3747,17 @@ app.post('/api/clean-install', async (req, res) => {
       const envContent = buildEnvFile(env, studioDomain, apiDomain, siteUrl);
       const nginxContent = buildNginxConf(studioDomain, apiDomain, env.DASHBOARD_PASSWORD || '', targetInstance);
       const escapedEnv = envContent.replace(/'/g, "'\\''");
+      const envSecretValidationCommand = buildEnvSecretValidationCommand(`${tgtDir}/docker/.env`);
 
       const envWriteCode = await sshExecStream(targetHost, targetPass,
         `mkdir -p ${tgtDir}/docker && printf '%s' '${escapedEnv}' > ${tgtDir}/docker/.env && echo ".env yazıldı"`,
         sessionId
       );
       if (envWriteCode !== 0) throw new Error(`.env yazılamadı (exit: ${envWriteCode}). Disk dolu mu?`);
+      const envSecretValidationCode = await sshExecStream(targetHost, targetPass, envSecretValidationCommand, sessionId);
+      if (envSecretValidationCode !== 0) {
+        throw new Error(`.env kritik secret kontrolü başarısız (exit: ${envSecretValidationCode}). POSTGRES_PASSWORD/JWT/SERVICE_ROLE değerleri boş olamaz.`);
+      }
 
       try {
         const escapedNginx = nginxContent.replace(/'/g, "'\\''");
