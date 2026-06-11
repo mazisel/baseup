@@ -2,29 +2,39 @@
 
 import { useState } from "react";
 import { LogIn, MailCheck, UserPlus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import type { AppCopy } from "@/lib/i18n";
-import { signInWithEmail } from "@/app/auth/actions";
+import { authenticateWithPassword } from "@/app/auth/actions";
 
 type AuthCopy = AppCopy["auth"];
 type AuthMode = "register" | "login";
 
 export function LoginForm({ copy, brand }: { copy: AuthCopy; brand: string }) {
+  const router = useRouter();
   const [mode, setMode] = useState<AuthMode>("register");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!email) return;
+    if (!email || !password) return;
+
+    if (mode === "register" && password !== passwordConfirm) {
+      setError(copy.passwordMismatch);
+      return;
+    }
 
     setLoading(true);
     setError("");
 
-    const response = await signInWithEmail(email, name, mode);
+    const response = await authenticateWithPassword(email, password, name, mode);
 
     if (response?.error) {
       setError(response.error);
@@ -32,6 +42,13 @@ export function LoginForm({ copy, brand }: { copy: AuthCopy; brand: string }) {
       return;
     }
 
+    if (response?.redirectTo) {
+      router.push(response.redirectTo);
+      router.refresh();
+      return;
+    }
+
+    setNeedsConfirmation(Boolean(response?.needsConfirmation));
     setSuccess(true);
     setLoading(false);
   }
@@ -40,9 +57,9 @@ export function LoginForm({ copy, brand }: { copy: AuthCopy; brand: string }) {
     return (
       <div className="panel auth-panel" style={{ textAlign: "center" }}>
         <MailCheck size={48} style={{ margin: "0 auto", marginBottom: 24, color: "var(--color-primary)" }} />
-        <h1 style={{ fontSize: 24 }}>{mode === "register" ? copy.registerSuccessTitle : copy.loginSuccessTitle}</h1>
+        <h1 style={{ fontSize: 24 }}>{copy.registerSuccessTitle}</h1>
         <p className="muted" style={{ marginTop: 8 }}>
-          {mode === "register" ? copy.registerSuccessDescription : copy.loginSuccessDescription} <strong>{email}</strong>
+          {needsConfirmation ? copy.registerConfirmDescription : copy.registerSuccessDescription} <strong>{email}</strong>
         </p>
       </div>
     );
@@ -93,6 +110,32 @@ export function LoginForm({ copy, brand }: { copy: AuthCopy; brand: string }) {
           <label htmlFor="email">{copy.email}</label>
           <input id="email" type="email" value={email} onChange={event => setEmail(event.target.value)} required />
         </div>
+        <div className="field">
+          <label htmlFor="password">{copy.password}</label>
+          <input
+            autoComplete={mode === "register" ? "new-password" : "current-password"}
+            id="password"
+            minLength={8}
+            type="password"
+            value={password}
+            onChange={event => setPassword(event.target.value)}
+            required
+          />
+        </div>
+        {mode === "register" ? (
+          <div className="field">
+            <label htmlFor="password-confirm">{copy.passwordConfirm}</label>
+            <input
+              autoComplete="new-password"
+              id="password-confirm"
+              minLength={8}
+              type="password"
+              value={passwordConfirm}
+              onChange={event => setPasswordConfirm(event.target.value)}
+              required
+            />
+          </div>
+        ) : null}
       </div>
 
       {error ? <p className="notice" role="alert">{error}</p> : null}
