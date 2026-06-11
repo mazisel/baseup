@@ -5,12 +5,10 @@ services:
     # (.github/workflows/build-images.yml). NEXT_PUBLIC_* değerleri
     # oradaki build sırasında gömülür — repo Variables'tan tanımlanır.
     image: ghcr.io/mazisel/baseup-web:latest
-    ports:
-      # Host portu doluysa (örn. Supabase Studio 3000 kullanır) WEB_PORT ile değiştirin
-      - "${WEB_PORT:-3000}:3000"
+    network_mode: host
     environment:
       - NODE_ENV=production
-      - REDIS_HOST=redis
+      - REDIS_HOST=localhost
       - REDIS_PORT=6379
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
@@ -23,10 +21,8 @@ services:
       - PAYTR_MERCHANT_KEY=${PAYTR_MERCHANT_KEY}
       - PAYTR_MERCHANT_SALT=${PAYTR_MERCHANT_SALT}
       - SAAS_RUNNER_MODE=${SAAS_RUNNER_MODE:-legacy}
-      - LEGACY_WEBAPP_URL=${LEGACY_WEBAPP_URL:-http://172.17.0.1:4567}
+      - LEGACY_WEBAPP_URL=${LEGACY_WEBAPP_URL:-http://localhost:4567}
       - ADMIN_EMAILS=${ADMIN_EMAILS}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       - redis
     restart: unless-stopped
@@ -42,6 +38,7 @@ services:
 
   redis:
     image: redis:alpine
+    network_mode: host
     # Port bilinçli olarak publish edilmiyor — yalnızca iç ağdan erişilir.
     volumes:
       - redis_data:/data
