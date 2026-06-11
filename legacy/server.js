@@ -85,6 +85,8 @@ function parseServiceStatusRows(output) {
 }
 
 // ─── SSH Helper ────────────────────────────────────────────────
+const SSH_HARD_TIMEOUT = 45000; // 45s — TCP connect + SSH handshake dahil toplam süre
+
 function sshExecAttempt(host, password, command) {
   return new Promise((resolve, reject) => {
     const conn = new SshClient();
@@ -94,15 +96,27 @@ function sshExecAttempt(host, password, command) {
     let ready = false;
     let execStarted = false;
 
+    // Hard timeout: TCP bağlantısı sessizce düşürülürse readyTimeout çalışmaz,
+    // bu yüzden tüm denemeyi 45 saniyeyle sınırlıyoruz.
+    const hardTimer = setTimeout(() => {
+      if (settled) return;
+      try { conn.end(); } catch (_) { /* no-op */ }
+      const err = new Error(`SSH bağlantısı zaman aşımına uğradı (${SSH_HARD_TIMEOUT / 1000}s) — sunucu erişilemez olabilir`);
+      err.code = 'ETIMEDOUT';
+      safeReject(err);
+    }, SSH_HARD_TIMEOUT);
+
     const safeResolve = (value) => {
       if (settled) return;
       settled = true;
+      clearTimeout(hardTimer);
       resolve(value);
     };
 
     const safeReject = (err) => {
       if (settled) return;
       settled = true;
+      clearTimeout(hardTimer);
       if (err && typeof err === 'object') {
         err.sshReady = ready;
         err.sshExecStarted = execStarted;
@@ -132,12 +146,15 @@ async function sshExec(host, password, command, options = {}) {
   const maxAttempts = Math.max(1, Number(options.maxAttempts || SSH_RETRY_DELAYS.length));
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
+      console.log(`[SSH] Deneme ${attempt}/${maxAttempts} → ${host} (komut: ${command.substring(0, 60)})`);
       return await sshExecAttempt(host, password, command);
     } catch (err) {
+      console.log(`[SSH] Deneme ${attempt} başarısız: ${err.message}`);
       const canRetry = isTransientSshError(err)
         && (options.retryAfterExecStarted || !err?.sshExecStarted)
         && attempt < maxAttempts;
       if (!canRetry) throw err;
+      console.log(`[SSH] ${SSH_RETRY_DELAYS[Math.min(attempt, SSH_RETRY_DELAYS.length - 1)]}ms sonra tekrar denenecek...`);
       await delay(SSH_RETRY_DELAYS[Math.min(attempt, SSH_RETRY_DELAYS.length - 1)] || SSH_RETRY_DELAYS[SSH_RETRY_DELAYS.length - 1]);
     }
   }
