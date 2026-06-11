@@ -54,7 +54,7 @@ export function startWorker() {
           }
         }
 
-        await log("info", `Job ${jobId} picked up by background worker (mode: ${RUNNER_MODE})`);
+        await log("info", `İşlem ${jobId} arka plan servisi tarafından alındı (mod: ${RUNNER_MODE})`);
 
         await supabase.from("job_runs").update({ status: "running", started_at: new Date().toISOString() }).eq("id", jobId);
 

@@ -25,8 +25,8 @@ export async function runLegacyBridgeJob(jobId: string, input: JobRequestInput, 
   const baseUrl = process.env.LEGACY_WEBAPP_URL;
   if (!baseUrl) throw new Error("LEGACY_WEBAPP_URL tanımlı değil.");
 
-  addLog(jobId, "step", "Legacy webapp bridge başlatıldı");
-  addLog(jobId, "info", `Bridge hedefi: ${baseUrl}`);
+  addLog(jobId, "step", "Legacy taşıma motoru (bridge) başlatıldı");
+  addLog(jobId, "info", `Hedef ortam: ${baseUrl}`);
 
   if (STREAMING_ENDPOINTS[input.type]) {
     await runStreamingLegacyJob(jobId, baseUrl, STREAMING_ENDPOINTS[input.type], input, addLog);
@@ -64,7 +64,7 @@ async function runStreamingLegacyJob(
     throw new Error(`Legacy endpoint HTTP ${response.status}`);
   }
 
-  addLog(jobId, "info", "Legacy job kabul edildi, log stream dinleniyor.");
+  addLog(jobId, "info", "İşlem legacy sunucusu tarafından kabul edildi, canlı kayıtlar (log stream) bekleniyor...");
   await readLegacySse(jobId, new URL(`/api/logs/${legacySessionId}`, baseUrl), addLog);
 }
 
