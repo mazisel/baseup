@@ -3,10 +3,13 @@ import { Plus } from "lucide-react";
 import { Suspense } from "react";
 import { getModules } from "@/lib/constants";
 import { getCurrentUser } from "@/lib/auth";
-import { getCopy } from "@/lib/i18n";
+import { getCopy, type AppCopy } from "@/lib/i18n";
 import { listJobs } from "@/lib/jobs";
 import { getPreferences } from "@/lib/preferences";
 import { StatusBadge } from "@/components/status-badge";
+import type { Locale } from "@/lib/preference-shared";
+
+type JobsPromise = ReturnType<typeof listJobs>;
 
 export const dynamic = "force-dynamic";
 
@@ -80,11 +83,11 @@ export default async function DashboardPage() {
   );
 }
 
-async function DashboardStats({ jobsPromise, limit, copy }: any) {
+async function DashboardStats({ jobsPromise, limit, copy }: { jobsPromise: JobsPromise; limit: number; copy: AppCopy }) {
   const jobs = await jobsPromise;
-  const running = jobs.filter((job: any) => job.status === "running").length;
-  const completed = jobs.filter((job: any) => job.status === "success").length;
-  const failed = jobs.filter((job: any) => job.status === "error").length;
+  const running = jobs.filter(job => job.status === "running").length;
+  const completed = jobs.filter(job => job.status === "success").length;
+  const failed = jobs.filter(job => job.status === "error").length;
 
   return (
     <section className="stats-grid">
@@ -108,7 +111,7 @@ async function DashboardStats({ jobsPromise, limit, copy }: any) {
   );
 }
 
-async function RecentJobs({ jobsPromise, locale, copy }: any) {
+async function RecentJobs({ jobsPromise, locale, copy }: { jobsPromise: JobsPromise; locale: Locale; copy: AppCopy }) {
   const jobs = await jobsPromise;
 
   return (
@@ -128,10 +131,10 @@ async function RecentJobs({ jobsPromise, locale, copy }: any) {
         </div>
       ) : (
         <div className="table-list">
-          {jobs.slice(0, 10).map((job: any) => (
+          {jobs.slice(0, 10).map(job => (
             <Link className="table-row" href={`/app/jobs/${job.id}`} key={job.id}>
               <div>
-                <strong>{job.type ? (getModules(locale).find((m: any) => m.id === job.type)?.title || job.title) : job.title}</strong>
+                <strong>{job.type ? (getModules(locale).find(m => m.id === job.type)?.title || job.title) : job.title}</strong>
                 <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{new Date(job.createdAt).toLocaleString(locale === "tr" ? "tr-TR" : "en-US")}</div>
               </div>
               <StatusBadge locale={locale} status={job.status} />
