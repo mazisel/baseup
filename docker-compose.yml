@@ -1,0 +1,37 @@
+version: '3.8'
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+      # You need to provide your Supabase connection strings via Portainer UI or a .env file
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - NEXT_PUBLIC_FROM_EMAIL=${NEXT_PUBLIC_FROM_EMAIL:-SupaOps <noreply@supaops.com>}
+      - PAYTR_MERCHANT_ID=${PAYTR_MERCHANT_ID}
+      - PAYTR_MERCHANT_KEY=${PAYTR_MERCHANT_KEY}
+      - PAYTR_MERCHANT_SALT=${PAYTR_MERCHANT_SALT}
+      - LEGACY_WEBAPP_URL=${LEGACY_WEBAPP_URL}
+      - ADMIN_EMAILS=${ADMIN_EMAILS}
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:
