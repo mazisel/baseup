@@ -2,6 +2,15 @@ import type { JobLogEntry, JobRequestInput } from "@/types/domain";
 
 type LogFn = (jobId: string, level: JobLogEntry["level"], message: string) => void;
 
+const LEGACY_CONNECT_TIMEOUT_MS = 10_000;
+
+export class LegacyBridgeUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LegacyBridgeUnavailableError";
+  }
+}
+
 const STREAMING_ENDPOINTS: Partial<Record<JobRequestInput["type"], string>> = {
   self_hosted_migration: "/api/migrate",
   cloud_to_self_hosted: "/api/migrate-from-cloud",
@@ -27,6 +36,7 @@ export async function runLegacyBridgeJob(jobId: string, input: JobRequestInput, 
 
   addLog(jobId, "step", "Legacy taşıma motoru (bridge) başlatıldı");
   addLog(jobId, "info", `Hedef ortam: ${baseUrl}`);
+  await assertLegacyReachable(baseUrl);
 
   if (STREAMING_ENDPOINTS[input.type]) {
     await runStreamingLegacyJob(jobId, baseUrl, STREAMING_ENDPOINTS[input.type], input, addLog);
@@ -53,24 +63,20 @@ async function runStreamingLegacyJob(
   const legacySessionId = `saas_${jobId}`;
   const body = buildLegacyBody(input, legacySessionId);
 
-  // SSE dinleyicisini POST isteğinden ÖNCE başlat, böylece erken gelen log'lar kaybolmaz.
-  const sseUrl = new URL(`/api/logs/${legacySessionId}`, baseUrl);
-  const ssePromise = readLegacySse(jobId, sseUrl, addLog);
-
-  const response = await fetch(new URL(endpoint, baseUrl), {
+  const response = await fetchWithTimeout(new URL(endpoint, baseUrl), {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
     body: JSON.stringify(body)
-  });
+  }, LEGACY_CONNECT_TIMEOUT_MS);
 
   if (!response.ok) {
     throw new Error(`Legacy endpoint HTTP ${response.status}`);
   }
 
   addLog(jobId, "info", "İşlem legacy sunucusu tarafından kabul edildi, canlı kayıtlar bekleniyor...");
-  await ssePromise;
+  await readLegacySse(jobId, new URL(`/api/logs/${legacySessionId}`, baseUrl), addLog);
 }
 
 async function runJsonLegacyJob(
@@ -82,13 +88,13 @@ async function runJsonLegacyJob(
 ) {
   if (!endpoint) throw new Error("Legacy endpoint bulunamadı.");
 
-  const response = await fetch(new URL(endpoint, baseUrl), {
+  const response = await fetchWithTimeout(new URL(endpoint, baseUrl), {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
     body: JSON.stringify(buildLegacyBody(input, `saas_${jobId}`))
-  });
+  }, LEGACY_CONNECT_TIMEOUT_MS);
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data?.success === false || data?.error) {
@@ -100,11 +106,11 @@ async function runJsonLegacyJob(
 }
 
 async function readLegacySse(jobId: string, url: URL, addLog: LogFn) {
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     headers: {
       Accept: "text/event-stream"
     }
-  });
+  }, LEGACY_CONNECT_TIMEOUT_MS);
 
   if (!response.ok || !response.body) {
     throw new Error(`Legacy log stream açılamadı: HTTP ${response.status}`);
@@ -134,6 +140,35 @@ async function readLegacySse(jobId: string, url: URL, addLog: LogFn) {
       if (payload.msg) addLog(jobId, level, payload.msg);
     }
   }
+}
+
+async function assertLegacyReachable(baseUrl: string) {
+  await fetchWithTimeout(new URL("/", baseUrl), {}, LEGACY_CONNECT_TIMEOUT_MS);
+}
+
+async function fetchWithTimeout(url: URL, init: RequestInit = {}, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal
+    });
+  } catch (error) {
+    throw new LegacyBridgeUnavailableError(buildLegacyConnectionMessage(url.origin, error));
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function buildLegacyConnectionMessage(baseUrl: string, error: unknown) {
+  const detail = error instanceof Error ? error.message : "bağlantı kurulamadı";
+  const hint = baseUrl.includes("172.17.0.1")
+    ? "Portainer env içindeki LEGACY_WEBAPP_URL eski host adresine bakıyor. Compose içindeki legacy servisi kullanmak için LEGACY_WEBAPP_URL değerini kaldırın veya http://legacy:4567 yapın."
+    : "Legacy servisin aynı Docker stack içinde çalıştığını ve LEGACY_WEBAPP_URL değerinin doğru olduğunu kontrol edin.";
+
+  return `Legacy taşıma motoruna ulaşılamıyor (${baseUrl}). ${hint} Teknik detay: ${detail}`;
 }
 
 function buildLegacyBody(input: JobRequestInput, sessionId: string) {

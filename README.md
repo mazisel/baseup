@@ -21,7 +21,7 @@ Open `http://localhost:3000`, use the demo login, and create a job from the dash
 ## Runner Modes
 
 - `SAAS_RUNNER_MODE=dry-run`: default safe mode. It validates the SaaS flow, logs, status changes, and secret masking without touching customer servers.
-- `SAAS_RUNNER_MODE=legacy`: bridges job requests to the existing legacy `webapp` API via `LEGACY_WEBAPP_URL`. Keep the old server running separately with `npm start` inside `webapp`.
+- `SAAS_RUNNER_MODE=legacy`: bridges job requests to the bundled `legacy` service at `http://legacy:4567` inside the same Docker stack.
 
 ## Supabase DB
 
@@ -62,9 +62,9 @@ Environment variables (runtime):
 | `RESEND_API_KEY` / `RESEND_FROM_EMAIL` / `NEXT_PUBLIC_FROM_EMAIL` | ✉️ | Job completion / uptime e-mails. `RESEND_FROM_EMAIL` must use a verified Resend domain, e.g. `BaseUp <noreply@your-domain>` |
 | `PAYTR_MERCHANT_ID` / `PAYTR_MERCHANT_KEY` / `PAYTR_MERCHANT_SALT` | 💳 | Billing; set the PayTR callback to `https://<your-domain>/api/billing/paytr/callback` |
 | `SAAS_RUNNER_MODE` | — | Defaults to `legacy` in compose (real runs) |
-| `LEGACY_WEBAPP_URL` | — | Defaults to `http://legacy:4567` (internal service) |
+| `LEGACY_WEBAPP_URL` | — | Fixed to `http://legacy:4567` in compose (internal legacy service) |
 | `WEB_PORT` | — | Host port for the UI, defaults to `3000` (set e.g. `3001` if 3000 is taken by Supabase Studio) |
 
 To ship an update: push to `main` (or re-run the workflow), then **Pull and redeploy** in Portainer. Put a reverse proxy with TLS in front of the web port.
 
-> **Security**: the `legacy` and `redis` services intentionally publish no ports. The legacy API is unauthenticated and executes root SSH commands on customer servers — never expose it publicly.
+> **Security**: the `legacy` and `redis` services intentionally publish no ports. The web container reaches the legacy API through the internal Compose DNS name `http://legacy:4567`; do not point `LEGACY_WEBAPP_URL` at `172.17.0.1` or a public host. The legacy API is unauthenticated and executes root SSH commands on customer servers — never expose it publicly.

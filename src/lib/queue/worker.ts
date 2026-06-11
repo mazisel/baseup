@@ -1,6 +1,6 @@
-import { Worker, Job } from "bullmq";
+import { UnrecoverableError, Worker, Job } from "bullmq";
 import { createClient } from "@supabase/supabase-js";
-import { runLegacyBridgeJob } from "../legacy-runner";
+import { LegacyBridgeUnavailableError, runLegacyBridgeJob } from "../legacy-runner";
 import type { MigrationJobPayload } from "./index";
 import { sendJobCompletionEmail, sendMonitorAlertEmail } from "../emails";
 import { checkMonitorUrl } from "../monitor-check";
@@ -77,12 +77,18 @@ export function startWorker() {
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";
-        await log("error", `Migration failed: ${message}`);
+        const userFacingMessage = error instanceof LegacyBridgeUnavailableError
+          ? message
+          : `Migration failed: ${message}`;
+        await log("error", userFacingMessage);
         await supabase.from("job_runs").update({ status: "error", error_message: message, finished_at: new Date().toISOString() }).eq("id", jobId);
 
         const isLastAttempt = job.attemptsMade >= (job.opts.attempts || 1) - 1;
         if (userEmail && isLastAttempt) {
           await sendJobCompletionEmail(userEmail, jobTitle, "error", message);
+        }
+        if (error instanceof LegacyBridgeUnavailableError) {
+          throw new UnrecoverableError(message);
         }
         throw error;
       }
