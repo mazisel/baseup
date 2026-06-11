@@ -51,13 +51,23 @@ export const COPY = {
       packagesTitle: "İhtiyacınıza uygun aracı seçin"
     },
     auth: {
-      title: "Panele giriş",
-      description: "Demo hesapla hemen başlayın. Supabase Auth bilgileri eklendiğinde aynı ekran gerçek kullanıcı girişine dönüşür.",
+      modeLabel: "Hesap işlemi",
+      registerTab: "Kayıt ol",
+      loginTab: "Giriş yap",
+      registerTitle: "Hesap oluştur",
+      registerDescription: "Adınızı ve e-posta adresinizi girin, güvenli kayıt bağlantısını gönderelim.",
+      loginTitle: "Panele giriş",
+      loginDescription: "E-posta adresinizi girin, güvenli giriş bağlantısını hemen gönderelim.",
       name: "Ad soyad",
       email: "E-posta",
-      submit: "Demo ile giriş",
+      registerSubmit: "Kayıt bağlantısı gönder",
+      loginSubmit: "Giriş bağlantısı gönder",
       loading: "Giriş yapılıyor",
-      error: "Giriş başlatılamadı."
+      error: "Giriş başlatılamadı.",
+      registerSuccessTitle: "Kayıt bağlantısı gönderildi",
+      registerSuccessDescription: "Kayıt işlemini tamamlamak için e-postanızı kontrol edin:",
+      loginSuccessTitle: "Giriş bağlantısı gönderildi",
+      loginSuccessDescription: "Panele girmek için e-postanızı kontrol edin:"
     },
     dashboard: {
       title: "Kontrol paneli",
@@ -205,13 +215,23 @@ export const COPY = {
       packagesTitle: "Pick the tool you need"
     },
     auth: {
-      title: "Sign in to the dashboard",
-      description: "Start with the demo account. Once Supabase Auth is configured, this screen becomes the real sign-in flow.",
+      modeLabel: "Account action",
+      registerTab: "Register",
+      loginTab: "Sign in",
+      registerTitle: "Create an account",
+      registerDescription: "Enter your name and email and we will send a secure registration link.",
+      loginTitle: "Sign in to the dashboard",
+      loginDescription: "Enter your email and we will send a secure sign-in link.",
       name: "Full name",
       email: "Email",
-      submit: "Continue with demo",
+      registerSubmit: "Send registration link",
+      loginSubmit: "Send sign-in link",
       loading: "Signing in",
-      error: "Could not start sign-in."
+      error: "Could not start sign-in.",
+      registerSuccessTitle: "Registration link sent",
+      registerSuccessDescription: "Check your email to complete registration:",
+      loginSuccessTitle: "Sign-in link sent",
+      loginSuccessDescription: "Check your email to enter the dashboard:"
     },
     dashboard: {
       title: "Dashboard",
