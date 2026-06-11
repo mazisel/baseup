@@ -97,7 +97,6 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
         <div>
           <div className="meta-row" style={{ marginBottom: 8 }}>
             <StatusBadge locale={locale} status={job.status} />
-            <span className="tag">{job.usageUnits || 0} {copy.job.credits}</span>
           </div>
           <h1 style={{ fontSize: 36 }}>{job.title}</h1>
           <p className="muted">{copy.job.id}: {job.id}</p>

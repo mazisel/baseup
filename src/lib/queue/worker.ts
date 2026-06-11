@@ -8,7 +8,7 @@ import type { JobRequestInput } from "@/types/domain";
 
 // "dry-run" modunda müşteri sunucusuna dokunulmaz; iş akışı, loglar ve durum
 // geçişleri simüle edilir. Gerçek çalıştırma için SAAS_RUNNER_MODE=legacy gerekir.
-const RUNNER_MODE = process.env.SAAS_RUNNER_MODE === "legacy" ? "legacy" : "dry-run";
+const RUNNER_MODE = process.env.SAAS_RUNNER_MODE || "native";
 
 const connection = {
   host: process.env.REDIS_HOST || "localhost",
@@ -58,14 +58,14 @@ export function startWorker() {
 
         await supabase.from("job_runs").update({ status: "running", started_at: new Date().toISOString() }).eq("id", jobId);
 
-        if (RUNNER_MODE === "dry-run") {
-          // Güvenli mod: müşteri sunucusuna bağlanmadan akışı simüle et.
-          await runDryRunJob(jobId, inputs as JobRequestInput, log);
-        } else {
-          // Execute actual work via Legacy Bridge
+        if (RUNNER_MODE === "legacy") {
+          // Eğer legacy özellikle seçildiyse Legacy Bridge çalıştır.
           await runLegacyBridgeJob(jobId, inputs as JobRequestInput, async (id, level, message) => {
             await log(level, message);
           });
+        } else {
+          // Varsayılan olarak native (simülasyon / dry-run) kullan.
+          await runDryRunJob(jobId, inputs as JobRequestInput, log);
         }
 
         await log("success", "Tüm işlemler başarıyla tamamlandı");
