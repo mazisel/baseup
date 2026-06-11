@@ -28,7 +28,7 @@ export default function TermsPage() {
 
       <section>
         <h2 style={{ marginBottom: 16 }}>4. Sorumluluk Sınırı</h2>
-        <p>SupaOps üzerinden çalıştırılan otomatik işlemler sonucunda meydana gelebilecek veri kayıplarından, sunucu kesintilerinden veya donanımsal zararlardan platformumuz veya geliştiricilerimiz sorumlu tutulamaz. Yazılım "olduğu gibi" (as-is) sunulmaktadır.</p>
+        <p>SupaOps üzerinden çalıştırılan otomatik işlemler sonucunda meydana gelebilecek veri kayıplarından, sunucu kesintilerinden veya donanımsal zararlardan platformumuz veya geliştiricilerimiz sorumlu tutulamaz. Yazılım &quot;olduğu gibi&quot; (as-is) sunulmaktadır.</p>
       </section>
     </article>
   );

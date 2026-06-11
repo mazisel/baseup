@@ -59,7 +59,7 @@ Environment variables (runtime):
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Worker writes job status/logs with it |
 | `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `NEXT_PUBLIC_SITE_URL` | ✅ | Same values as the GitHub Variables (used by server-side code) |
 | `ADMIN_EMAILS` | ✅ | Comma-separated admin e-mails |
-| `RESEND_API_KEY` / `NEXT_PUBLIC_FROM_EMAIL` | ✉️ | Job completion / uptime e-mails |
+| `RESEND_API_KEY` / `RESEND_FROM_EMAIL` / `NEXT_PUBLIC_FROM_EMAIL` | ✉️ | Job completion / uptime e-mails. `RESEND_FROM_EMAIL` must use a verified Resend domain, e.g. `BaseUp <noreply@your-domain>` |
 | `PAYTR_MERCHANT_ID` / `PAYTR_MERCHANT_KEY` / `PAYTR_MERCHANT_SALT` | 💳 | Billing; set the PayTR callback to `https://<your-domain>/api/billing/paytr/callback` |
 | `SAAS_RUNNER_MODE` | — | Defaults to `legacy` in compose (real runs) |
 | `LEGACY_WEBAPP_URL` | — | Defaults to `http://legacy:4567` (internal service) |

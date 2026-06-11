@@ -8,7 +8,7 @@ export const COPY = {
       login: "Giriş",
       openPanel: "Paneli aç",
       dashboard: "Kontrol paneli",
-      newJob: "Yeni hizmet",
+      newJob: "Yeni işlem",
       settings: "Plan ve ayarlar",
       logout: "Çıkış"
     },
@@ -32,7 +32,7 @@ export const COPY = {
         ["plain", "Migration workflow oluşturuldu"],
         ["warn", "Secret değerleri otomatik maskelendi"],
         ["plain", "Aktarım adımları sıraya alındı"],
-        ["plain", "Müşteri raporu hazırlanıyor"],
+        ["plain", "İşlem raporu hazırlanıyor"],
         ["ok", "Canlı durum paylaşımı güncellendi"],
         ["plain", "Doğrulama skorları üretildi"],
         ["ok", "Teslimata hazır"]
@@ -48,7 +48,7 @@ export const COPY = {
         lead: "Sıfır riskle hemen deneyin. Kurulum gerektirmez.",
         cta: "Ücretsiz dene"
       },
-      packagesTitle: "İhtiyacınıza uygun aracı seçin"
+      packagesTitle: "İhtiyacınıza uygun işlemi seçin"
     },
     auth: {
       modeLabel: "Hesap işlemi",
@@ -73,28 +73,35 @@ export const COPY = {
     },
     dashboard: {
       title: "Kontrol paneli",
-      description: "Taşıma, kurulum ve doğrulama hizmetlerinin güncel durumu.",
-      newJob: "Yeni hizmet",
+      description: "Taşıma, kurulum ve doğrulama işlemlerinin güncel durumu.",
+      newJob: "Yeni işlem",
       monthUsage: "Bu ay kullanılan",
       running: "Çalışan",
       completed: "Tamamlanan",
       failed: "Hatalı",
-      servicesTitle: "Hizmet paketleri",
-      servicesDescription: "Müşteriye sunulacak işleri standart ve tekrar edilebilir paketlere ayırın.",
+      servicesTitle: "İşlemler",
+      servicesDescription: "Sık kullanılan taşıma, kurulum ve doğrulama işlemlerini buradan başlatın.",
       recentJobs: "Son teslimatlar",
       recentDescription: "Canlı ilerleme ve teslim detaylarına buradan ulaşılır.",
       emptyTitle: "Henüz teslimat yok",
-      emptyDescription: "İlk hizmeti başlattığınızda durum, kullanım ve log detayları burada görünür.",
-      startJob: "Hizmet başlat",
+      emptyDescription: "İlk işlemi başlattığınızda durum, kullanım ve log detayları burada görünür.",
+      startJob: "İşlem başlat",
       sanitizedJob: "Güvenli teslimat kaydı"
     },
     newJob: {
-      title: "Yeni hizmet",
-      description: "Hizmet paketini seçin, geçici erişim bilgilerini girin ve ilerlemeyi canlı izleyin."
+      title: "Yeni işlem",
+      description: "İşlemi seçin, geçici erişim bilgilerini girin ve ilerlemeyi canlı izleyin."
     },
     launcher: {
-      moduleTitle: "Hizmet paketi",
-      moduleDescription: "Müşteriye sunacağınız işi seçin.",
+      stepperLabel: "İşlem başlatma adımları",
+      stepPackage: "İşlem",
+      stepDetails: "Bilgiler",
+      stepOptions: "Seçenekler",
+      moduleTitle: "İşlem",
+      moduleDescription: "Yapmak istediğiniz işlemi seçin.",
+      selectedPackage: "Seçilen işlem",
+      reviewTitle: "Son kontrol",
+      reviewDescription: "Başlatmadan önce ek seçenekleri seçin.",
       credits: "kredi",
       secretNotice: "Root şifresi, service key ve veritabanı bağlantısı kalıcı kayda alınmaz; loglarda maskelenir.",
       sourceHost: "Kaynak sunucu",
@@ -117,9 +124,11 @@ export const COPY = {
       migrateStorage: "Storage taşı",
       continueOnMinorErrors: "Küçük hatalarda devam et",
       skipInstall: "Kurulumu atla",
-      submit: "Hizmeti başlat",
+      back: "Geri",
+      next: "Devam et",
+      submit: "İşlemi başlat",
       loading: "Hazırlanıyor",
-      createError: "Hizmet oluşturulamadı."
+      createError: "İşlem oluşturulamadı."
     },
     job: {
       back: "Kontrol paneli",
@@ -139,14 +148,17 @@ export const COPY = {
     },
     settings: {
       title: "Plan ve ayarlar",
-      description: "Çalışma alanı, kullanım limitleri ve güvenlik politikası.",
+      description: "Planınızı, kullanım limitlerinizi ve ödeme ayarlarınızı yönetin.",
       plan: "Plan",
-      monthlyLimit: "Aylık hizmet limiti",
-      parallelLimit: "Paralel hizmet",
+      monthlyLimit: "Aylık işlem limiti",
+      parallelLimit: "Paralel işlem",
       usage: "Kullanım",
-      billingTitle: "Ödeme altyapısı",
-      billingDescription: "Plan ve yetkilendirme modeli hazır. Ödeme sağlayıcısı ayrı bir bağlantı olarak eklenecek.",
-      billingTag: "Bağlantı bekliyor",
+      teamTitle: "Ekip yönetimi",
+      teamDescription: "Üyeleri ve rollerini yönetin.",
+      teamTag: "Owner / Admin",
+      billingTitle: "Plan ve ödeme",
+      billingDescription: "Planınızı yükseltin, limitlerinizi ve ödeme seçeneklerinizi yönetin.",
+      billingTag: "Faturalandırma",
       dbTitle: "Supabase veritabanı",
       dbDescription: "schema.sql; çalışma alanı, üyelik, plan, teslimat ve log tablolarını içerir.",
       dbTag: "Şema hazır",
@@ -162,7 +174,7 @@ export const COPY = {
       cancelled: "İptal"
     } satisfies Record<JobStatus, string>,
     misc: {
-      demoWorkspace: "Demo çalışma alanı",
+      demoWorkspace: "Kişisel hesap",
       owner: "sahip",
       report: "Rapor",
       file: "Dosya"
@@ -174,7 +186,7 @@ export const COPY = {
       login: "Sign in",
       openPanel: "Open dashboard",
       dashboard: "Dashboard",
-      newJob: "New service",
+      newJob: "New operation",
       settings: "Plan and settings",
       logout: "Sign out"
     },
@@ -214,7 +226,7 @@ export const COPY = {
         lead: "Try the zero-risk migration platform today. No setup required.",
         cta: "Start free trial"
       },
-      packagesTitle: "Pick the tool you need"
+      packagesTitle: "Pick the operation you need"
     },
     auth: {
       modeLabel: "Account action",
@@ -239,28 +251,35 @@ export const COPY = {
     },
     dashboard: {
       title: "Dashboard",
-      description: "Current status for migration, install, and verification services.",
-      newJob: "New service",
+      description: "Current status for migration, install, and verification operations.",
+      newJob: "New operation",
       monthUsage: "Used this month",
       running: "Running",
       completed: "Completed",
       failed: "Failed",
-      servicesTitle: "Service packages",
-      servicesDescription: "Standardize client work into repeatable service packages.",
+      servicesTitle: "Operations",
+      servicesDescription: "Start common migration, setup, and verification operations from here.",
       recentJobs: "Recent deliveries",
       recentDescription: "Open live progress and delivery details from here.",
       emptyTitle: "No deliveries yet",
-      emptyDescription: "Once you start the first service, status, usage, and logs will appear here.",
-      startJob: "Start service",
+      emptyDescription: "Once you start the first operation, status, usage, and logs will appear here.",
+      startJob: "Start operation",
       sanitizedJob: "Protected delivery record"
     },
     newJob: {
-      title: "New service",
-      description: "Choose a package, enter temporary access details, and watch progress live."
+      title: "New operation",
+      description: "Choose an operation, enter temporary access details, and watch progress live."
     },
     launcher: {
-      moduleTitle: "Service package",
-      moduleDescription: "Choose the client service you want to deliver.",
+      stepperLabel: "Operation launch steps",
+      stepPackage: "Operation",
+      stepDetails: "Details",
+      stepOptions: "Options",
+      moduleTitle: "Operation",
+      moduleDescription: "Choose the operation you want to run.",
+      selectedPackage: "Selected operation",
+      reviewTitle: "Final check",
+      reviewDescription: "Choose optional actions before starting the operation.",
       credits: "credits",
       secretNotice: "Root passwords, service-role keys, and database URLs are not stored; logs mask sensitive values.",
       sourceHost: "Source server",
@@ -283,9 +302,11 @@ export const COPY = {
       migrateStorage: "Move storage",
       continueOnMinorErrors: "Continue on minor errors",
       skipInstall: "Skip install",
-      submit: "Start service",
+      back: "Back",
+      next: "Continue",
+      submit: "Start operation",
       loading: "Preparing",
-      createError: "Could not create service."
+      createError: "Could not create operation."
     },
     job: {
       back: "Dashboard",
@@ -305,14 +326,17 @@ export const COPY = {
     },
     settings: {
       title: "Plan and settings",
-      description: "Workspace, usage limits, and security policy.",
+      description: "Manage your plan, usage limits, and billing settings.",
       plan: "Plan",
-      monthlyLimit: "Monthly service limit",
-      parallelLimit: "Parallel services",
+      monthlyLimit: "Monthly operation limit",
+      parallelLimit: "Parallel operations",
       usage: "Usage",
-      billingTitle: "Billing adapter",
-      billingDescription: "Plan and entitlement models are ready. A payment provider can be connected as a separate adapter.",
-      billingTag: "Not connected",
+      teamTitle: "Team management",
+      teamDescription: "Manage members and their roles.",
+      teamTag: "Owner / Admin",
+      billingTitle: "Plan and billing",
+      billingDescription: "Upgrade your plan, limits, and payment options.",
+      billingTag: "Billing",
       dbTitle: "Supabase database",
       dbDescription: "schema.sql includes workspace, membership, plan, delivery, and log tables.",
       dbTag: "Schema ready",
@@ -328,7 +352,7 @@ export const COPY = {
       cancelled: "Cancelled"
     } satisfies Record<JobStatus, string>,
     misc: {
-      demoWorkspace: "Demo workspace",
+      demoWorkspace: "Personal account",
       owner: "owner",
       report: "Report",
       file: "File"

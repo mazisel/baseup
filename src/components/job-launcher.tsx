@@ -2,17 +2,21 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Play, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Play, ShieldCheck } from "lucide-react";
 import { getModules } from "@/lib/constants";
 import { getCopy } from "@/lib/i18n";
 import type { Locale } from "@/lib/preference-shared";
 import type { JobRequestInput, MigrationModuleType } from "@/types/domain";
 
 const DEFAULT_TYPE: MigrationModuleType = "self_hosted_migration";
+const STEP_ORDER = ["package", "details", "options"] as const;
+
+type LauncherStep = typeof STEP_ORDER[number];
 
 export function JobLauncher({ initialType, locale }: { initialType?: MigrationModuleType; locale: Locale }) {
   const router = useRouter();
   const [type, setType] = useState<MigrationModuleType>(initialType ?? DEFAULT_TYPE);
+  const [step, setStep] = useState<LauncherStep>("package");
   const [instanceCount, setInstanceCount] = useState("1");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -20,9 +24,37 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
   const copy = getCopy(locale);
   const modules = useMemo(() => getModules(locale), [locale]);
   const selectedModule = useMemo(() => modules.find(module => module.id === type) ?? modules[0], [modules, type]);
+  const SelectedIcon = selectedModule.icon;
+  const currentStepIndex = STEP_ORDER.indexOf(step);
+  const steps: Array<{ id: LauncherStep; label: string }> = [
+    { id: "package", label: copy.launcher.stepPackage },
+    { id: "details", label: copy.launcher.stepDetails },
+    { id: "options", label: copy.launcher.stepOptions }
+  ];
+
+  function goToStep(nextStep: LauncherStep) {
+    setError("");
+    setStep(nextStep);
+  }
+
+  function goNext() {
+    const nextIndex = Math.min(currentStepIndex + 1, STEP_ORDER.length - 1);
+    goToStep(STEP_ORDER[nextIndex]);
+  }
+
+  function goBack() {
+    const previousIndex = Math.max(currentStepIndex - 1, 0);
+    goToStep(STEP_ORDER[previousIndex]);
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (step !== "options") {
+      goNext();
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -67,57 +99,106 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
       migrateSecrets: form.get("migrateSecrets") === "on"
     };
 
-    const response = await fetch("/api/jobs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    try {
+      const response = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
 
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setError(data.error || copy.launcher.createError);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.job) {
+        setError(data.error || copy.launcher.createError);
+        setLoading(false);
+        return;
+      }
+
+      router.push(`/app/jobs/${data.job.id}`);
+    } catch {
+      setError(copy.launcher.createError);
       setLoading(false);
-      return;
     }
-
-    router.push(`/app/jobs/${data.job.id}`);
   }
 
   return (
-    <form className="job-form" onSubmit={submit}>
-      <section className="panel">
-        <h2>{copy.launcher.moduleTitle}</h2>
-        <p className="muted">{copy.launcher.moduleDescription}</p>
-        <div className="module-picker">
+    <form className="job-form job-wizard" onSubmit={submit}>
+      <div className="wizard-stepper" aria-label={copy.launcher.stepperLabel}>
+        {steps.map((item, index) => {
+          const isComplete = index < currentStepIndex;
+          const isActive = item.id === step;
+          return (
+            <button
+              aria-current={isActive ? "step" : undefined}
+              className={`wizard-step ${isActive ? "active" : ""} ${isComplete ? "complete" : ""}`}
+              disabled={index > currentStepIndex}
+              key={item.id}
+              onClick={() => goToStep(item.id)}
+              type="button"
+            >
+              <span className="wizard-step-index">
+                {isComplete ? <CheckCircle2 size={15} /> : index + 1}
+              </span>
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <section className="panel job-step-panel" hidden={step !== "package"}>
+        <div className="job-step-head">
+          <div>
+            <h2>{copy.launcher.moduleTitle}</h2>
+            <p className="muted">{copy.launcher.moduleDescription}</p>
+          </div>
+        </div>
+
+        <div className="launcher-package-grid">
           {modules.map(module => {
             const Icon = module.icon;
             return (
               <button
-                className={`module-option ${module.id === type ? "active" : ""}`}
+                aria-pressed={module.id === type}
+                className={`launcher-package-option ${module.id === type ? "active" : ""}`}
                 key={module.id}
                 onClick={() => setType(module.id)}
                 type="button"
               >
-                <Icon size={22} />
-                <strong>{module.title}</strong>
-                <span className="muted">{module.description}</span>
+                <span className="package-card-icon">
+                  <Icon size={22} />
+                </span>
+                <span className="launcher-package-body">
+                  <strong>{module.title}</strong>
+                  <span className="muted">{module.description}</span>
+                </span>
+                <span className="tag">{module.usageUnits} {copy.launcher.credits}</span>
               </button>
             );
           })}
         </div>
+
+        <div className="wizard-actions">
+          <button className="button primary" onClick={goNext} type="button">
+            {copy.launcher.next}
+            <ArrowRight size={16} />
+          </button>
+        </div>
       </section>
 
-      <section className="panel">
-        <div className="page-head" style={{ marginBottom: 12 }}>
+      <section className="panel job-step-panel" hidden={step !== "details"}>
+        <div className="selected-package-summary">
           <div>
+            <span className="muted">{copy.launcher.selectedPackage}</span>
             <h2>{selectedModule.title}</h2>
             <p className="muted">{selectedModule.description}</p>
           </div>
-          <span className="tag">{selectedModule.usageUnits} {copy.launcher.credits}</span>
+          <div className="selected-package-meta">
+            <SelectedIcon size={22} />
+            <span className="tag">{selectedModule.usageUnits} {copy.launcher.credits}</span>
+          </div>
         </div>
 
-        <div className="notice" style={{ marginBottom: 16 }}>
-          <ShieldCheck size={16} style={{ verticalAlign: "text-bottom" }} /> {copy.launcher.secretNotice}
+        <div className="notice job-secret-notice">
+          <ShieldCheck size={16} /> {copy.launcher.secretNotice}
         </div>
 
         <div className="form-grid">
@@ -175,9 +256,9 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
 
           {needsDomains(type) ? (
             <>
-              <div className="field full" style={{ marginTop: 8, padding: 12, background: 'var(--bg-subtle, #f9f9f9)', borderRadius: 8 }}>
-                <h4 style={{ margin: "0 0 12px 0", fontSize: 14 }}>Instance 1 Domains</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="field full form-section">
+                <h4>Instance 1 Domains</h4>
+                <div className="form-subgrid">
                   <div className="field">
                     <label htmlFor="studioDomain">{copy.launcher.studioDomain}</label>
                     <input id="studioDomain" name="studioDomain" placeholder="studio.example.com" />
@@ -190,9 +271,9 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
               </div>
 
               {(instanceCount === "2" || instanceCount === "3") && (
-                <div className="field full" style={{ marginTop: 8, padding: 12, background: 'var(--bg-subtle, #f9f9f9)', borderRadius: 8 }}>
-                  <h4 style={{ margin: "0 0 12px 0", fontSize: 14 }}>Instance 2 Domains</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="field full form-section">
+                  <h4>Instance 2 Domains</h4>
+                  <div className="form-subgrid">
                     <div className="field">
                       <label htmlFor="studioDomain2">{copy.launcher.studioDomain}</label>
                       <input id="studioDomain2" name="studioDomain2" placeholder="studio2.example.com" />
@@ -206,9 +287,9 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
               )}
 
               {instanceCount === "3" && (
-                <div className="field full" style={{ marginTop: 8, padding: 12, background: 'var(--bg-subtle, #f9f9f9)', borderRadius: 8 }}>
-                  <h4 style={{ margin: "0 0 12px 0", fontSize: 14 }}>Instance 3 Domains</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="field full form-section">
+                  <h4>Instance 3 Domains</h4>
+                  <div className="form-subgrid">
                     <div className="field">
                       <label htmlFor="studioDomain3">{copy.launcher.studioDomain}</label>
                       <input id="studioDomain3" name="studioDomain3" placeholder="studio3.example.com" />
@@ -247,9 +328,9 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
           ) : null}
 
           {type === "setup_automated_backup" ? (
-            <div className="field full" style={{ marginTop: 8, padding: 12, background: 'var(--bg-subtle, #f9f9f9)', borderRadius: 8 }}>
-              <h4 style={{ margin: "0 0 12px 0", fontSize: 14 }}>S3 / R2 Backup Credentials</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="field full form-section">
+              <h4>S3 / R2 Backup Credentials</h4>
+              <div className="form-subgrid">
                 <div className="field">
                   <label htmlFor="s3AccessKey">Access Key</label>
                   <input id="s3AccessKey" name="s3AccessKey" type="password" placeholder="AKIA..." autoComplete="off" />
@@ -280,93 +361,123 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
           ) : null}
 
           {type === "supabase_upgrade" ? (
-            <div className="field full" style={{ marginTop: 8, padding: 12, background: 'var(--bg-subtle, #f9f9f9)', borderRadius: 8 }}>
-              <h4 style={{ margin: "0 0 12px 0", fontSize: 14 }}>Upgrade Options</h4>
+            <div className="field full form-section">
+              <h4>Upgrade Options</h4>
               <div className="field">
                 <label htmlFor="targetVersion">Hedef Versiyon (İsteğe Bağlı)</label>
                 <input id="targetVersion" name="targetVersion" placeholder="latest (veya v1.140.0)" defaultValue="latest" />
-                <p className="muted" style={{ marginTop: 4, fontSize: 11 }}>Boş bırakırsanız veya 'latest' yazarsanız en güncel kararlı sürüme güncellenir.</p>
+                <p className="muted" style={{ marginTop: 4, fontSize: 11 }}>
+                  {"Boş bırakırsanız veya 'latest' yazarsanız en güncel kararlı sürüme güncellenir."}
+                </p>
               </div>
             </div>
           ) : null}
 
           {type === "ai_seeder" ? (
-            <div className="field full" style={{ marginTop: 8, padding: 12, background: 'var(--bg-subtle, #f9f9f9)', borderRadius: 8 }}>
-              <h4 style={{ margin: "0 0 12px 0", fontSize: 14 }}>AI Seeder Seçenekleri</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="field full form-section">
+              <h4>AI Seeder Seçenekleri</h4>
+              <div className="form-subgrid">
                 <div className="field">
                   <label htmlFor="targetTable">Hedef Tablo Adı</label>
-                  <input id="targetTable" name="targetTable" placeholder="users" required />
+                  <input id="targetTable" name="targetTable" placeholder="users" />
                 </div>
                 <div className="field">
                   <label htmlFor="rowCount">Satır Sayısı</label>
-                  <input id="rowCount" name="rowCount" type="number" defaultValue="10" required />
+                  <input id="rowCount" name="rowCount" type="number" defaultValue="10" />
                 </div>
               </div>
               <div className="field full" style={{ marginTop: 12 }}>
                 <label htmlFor="prompt">Veri Formatı / İstek (Prompt)</label>
-                <textarea id="prompt" name="prompt" placeholder="İstanbul'da yaşayan rastgele bakiyeli kullanıcılar" required />
+                <textarea id="prompt" name="prompt" placeholder="İstanbul'da yaşayan rastgele bakiyeli kullanıcılar" />
               </div>
             </div>
           ) : null}
 
           {type === "infra_inspector" ? (
-            <div className="field full" style={{ marginTop: 8, padding: 12, background: 'var(--bg-subtle, #f9f9f9)', borderRadius: 8 }}>
-              <h4 style={{ margin: "0 0 12px 0", fontSize: 14 }}>Docker Sağlık Taraması</h4>
+            <div className="field full form-section">
+              <h4>Docker Sağlık Taraması</h4>
               <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-                Sunucunuza güvenli bir şekilde bağlanılacak ve tüm Supabase container'larının RAM/CPU kullanımı, çöken servisler ve logları saniye saniye analiz edilecektir. İşlem sonunda detaylı bir teşhis raporu sunulacaktır.
+                {"Sunucunuza güvenli bir şekilde bağlanılacak ve tüm Supabase container'larının RAM/CPU kullanımı, çöken servisler ve logları saniye saniye analiz edilecektir. İşlem sonunda detaylı bir teşhis raporu sunulacaktır."}
               </p>
             </div>
           ) : null}
         </div>
 
-        <div className="meta-row" style={{ marginTop: 16 }}>
-          <label className="toggle-row">
+        <div className="wizard-actions">
+          <button className="button secondary" onClick={goBack} type="button">
+            <ArrowLeft size={16} />
+            {copy.launcher.back}
+          </button>
+          <button className="button primary" onClick={goNext} type="button">
+            {copy.launcher.next}
+            <ArrowRight size={16} />
+          </button>
+        </div>
+      </section>
+
+      <section className="panel job-step-panel" hidden={step !== "options"}>
+        <div className="selected-package-summary">
+          <div>
+            <span className="muted">{copy.launcher.reviewTitle}</span>
+            <h2>{selectedModule.title}</h2>
+            <p className="muted">{copy.launcher.reviewDescription}</p>
+          </div>
+          <span className="tag">{selectedModule.usageUnits} {copy.launcher.credits}</span>
+        </div>
+
+        <div className="option-grid">
+          <label className="toggle-row option-card">
             <input name="getSSL" type="checkbox" />
-            {copy.launcher.getSSL}
+            <span>{copy.launcher.getSSL}</span>
           </label>
-          <label className="toggle-row">
+          <label className="toggle-row option-card">
             <input name="setupBackup" type="checkbox" />
-            {copy.launcher.setupBackup}
+            <span>{copy.launcher.setupBackup}</span>
           </label>
-          <label className="toggle-row">
+          <label className="toggle-row option-card">
             <input name="migrateStorage" type="checkbox" />
-            {copy.launcher.migrateStorage}
+            <span>{copy.launcher.migrateStorage}</span>
           </label>
-          <label className="toggle-row">
+          <label className="toggle-row option-card">
             <input name="continueOnMinorErrors" type="checkbox" />
-            {copy.launcher.continueOnMinorErrors}
+            <span>{copy.launcher.continueOnMinorErrors}</span>
           </label>
-          <label className="toggle-row">
+          <label className="toggle-row option-card">
             <input name="skipInstall" type="checkbox" />
-            {copy.launcher.skipInstall}
+            <span>{copy.launcher.skipInstall}</span>
           </label>
           {["self_hosted_migration", "cloud_to_self_hosted"].includes(type) && (
-            <label className="toggle-row">
+            <label className="toggle-row option-card">
               <input name="anonymizeData" type="checkbox" />
-              Kişisel Verileri Maskele (Anonimleştir)
+              <span>Kişisel Verileri Maskele (Anonimleştir)</span>
             </label>
           )}
           {type === "prod_to_local" && (
-            <label className="toggle-row">
+            <label className="toggle-row option-card">
               <input name="anonymizeData" type="checkbox" defaultChecked disabled />
-              Kişisel Verileri Maskele (Zorunlu Güvenlik)
+              <span>Kişisel Verileri Maskele (Zorunlu Güvenlik)</span>
             </label>
           )}
           {type === "edge_functions_migrator" && (
-            <label className="toggle-row">
+            <label className="toggle-row option-card">
               <input name="migrateSecrets" type="checkbox" />
-              Gizli Ortam Değişkenlerini (Secrets) Taşı
+              <span>Gizli Ortam Değişkenlerini (Secrets) Taşı</span>
             </label>
           )}
         </div>
 
-        {error ? <p className="notice" role="alert" style={{ marginTop: 16 }}>{error}</p> : null}
+        {error ? <p className="notice" role="alert">{error}</p> : null}
 
-        <button className="button primary" disabled={loading} style={{ marginTop: 18 }} type="submit">
-          <Play size={17} />
-          {loading ? copy.launcher.loading : copy.launcher.submit}
-        </button>
+        <div className="wizard-actions">
+          <button className="button secondary" onClick={goBack} type="button">
+            <ArrowLeft size={16} />
+            {copy.launcher.back}
+          </button>
+          <button className="button primary" disabled={loading} type="submit">
+            <Play size={17} />
+            {loading ? copy.launcher.loading : copy.launcher.submit}
+          </button>
+        </div>
       </section>
     </form>
   );

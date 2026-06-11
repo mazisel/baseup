@@ -6,13 +6,31 @@ import { StatusBadge } from "@/components/status-badge";
 import { getCopy } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
 import type { Locale } from "@/lib/preference-shared";
-import type { JobLogEntry, JobRun } from "@/types/domain";
+import type { JobRun } from "@/types/domain";
+
+// job_events / job_runs tablolarından gelen satır şekilleri (snake_case)
+type JobEventRow = {
+  id: string;
+  job_id: string;
+  level: string;
+  message: string;
+  created_at: string;
+};
+
+type JobRunRow = {
+  status: JobRun["status"];
+  updated_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  error_message: string | null;
+};
 
 export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: Locale }) {
   const [job, setJob] = useState(initialJob);
   // initialJob.logs might be empty now because the server getJob doesn't fetch logs yet, we need to handle that or fetch logs on mount
-  const [logs, setLogs] = useState<any[]>([]); 
+  const [logs, setLogs] = useState<JobEventRow[]>([]);
   const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState("");
   const copy = getCopy(locale);
   const supabase = createClient();
 
@@ -26,18 +44,18 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
     // Subscribe to realtime updates for this job
     const channel = supabase.channel(`job_${initialJob.id}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "job_runs", filter: `id=eq.${initialJob.id}` }, (payload) => {
-        const row = payload.new as any;
-        setJob((prev: any) => ({
+        const row = payload.new as JobRunRow;
+        setJob(prev => ({
           ...prev,
           status: row.status,
           updatedAt: row.updated_at,
-          startedAt: row.started_at,
-          finishedAt: row.finished_at,
-          errorMessage: row.error_message,
+          startedAt: row.started_at ?? undefined,
+          finishedAt: row.finished_at ?? undefined,
+          errorMessage: row.error_message ?? undefined,
         }));
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "job_events", filter: `job_id=eq.${initialJob.id}` }, (payload) => {
-        setLogs(current => [...current, payload.new]);
+        setLogs(current => [...current, payload.new as JobEventRow]);
       })
       .subscribe();
 
@@ -58,11 +76,17 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
 
   async function retry() {
     setRetrying(true);
-    const response = await fetch(`/api/jobs/${job.id}/retry`, { method: "POST" });
-    const data = await response.json().catch(() => ({}));
-    if (response.ok && data.job?.id) {
-      window.location.href = `/app/jobs/${data.job.id}`;
-      return;
+    setRetryError("");
+    try {
+      const response = await fetch(`/api/jobs/${job.id}/retry`, { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.job?.id) {
+        window.location.href = `/app/jobs/${data.job.id}`;
+        return;
+      }
+      setRetryError(data.error || copy.job.retry);
+    } catch {
+      setRetryError(locale === "tr" ? "Sunucuya ulaşılamadı." : "Could not reach the server.");
     }
     setRetrying(false);
   }
@@ -94,6 +118,7 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
       </div>
 
       {job.errorMessage ? <p className="notice">{job.errorMessage}</p> : null}
+      {retryError ? <p className="notice" role="alert">{retryError}</p> : null}
 
       <section className="panel">
         <h2>{copy.job.liveLog}</h2>

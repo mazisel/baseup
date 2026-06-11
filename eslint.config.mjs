@@ -16,7 +16,10 @@ const eslintConfig = [
       "node_modules/**",
       "out/**",
       "dist/**",
-      "next-env.d.ts"
+      "next-env.d.ts",
+      // Ayrı bir Node servisi olarak çalışan eski (plain JS) kod tabanı;
+      // Next/TS kurallarıyla lint'lenmesi anlamlı değil.
+      "legacy/**"
     ]
   },
   ...compat.extends("next/core-web-vitals", "next/typescript")

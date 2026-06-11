@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, Plus, Settings, Activity } from "lucide-react";
+import { AppNav } from "@/components/app-nav";
 import { BrandLogo } from "@/components/brand-logo";
 import { LogoutButton } from "@/components/logout-button";
 import { PreferenceControls } from "@/components/preference-controls";
@@ -29,28 +29,7 @@ export function AppShell({
         <Link className="brand" href="/app">
           <BrandLogo name={copy.brand} />
         </Link>
-        <nav className="side-nav" aria-label={copy.nav.dashboard}>
-          <Link className="active" href="/app">
-            <BarChart3 size={18} />
-            {copy.nav.dashboard}
-          </Link>
-          {user.role !== 'viewer' && (
-            <Link href="/app/new-job">
-              <Plus size={18} />
-              {copy.nav.newJob}
-            </Link>
-          )}
-          {user.role !== 'viewer' && (
-            <Link href="/app/monitors">
-              <Activity size={18} />
-              Monitors
-            </Link>
-          )}
-          <Link href="/app/settings">
-            <Settings size={18} />
-            {copy.nav.settings}
-          </Link>
-        </nav>
+        <AppNav copy={copy} user={user} />
       </aside>
       <main className="app-main">
         <div className="app-topbar">

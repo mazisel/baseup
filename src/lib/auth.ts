@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
-import type { AppUser } from "@/types/domain";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { AppUser, MembershipRole } from "@/types/domain";
+
+const MEMBERSHIP_ROLES: MembershipRole[] = ["owner", "admin", "operator", "viewer"];
 
 export async function getCurrentUser(): Promise<AppUser | null> {
   const supabase = await createClient();
@@ -11,27 +14,52 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     return null;
   }
 
-  const { data: membership } = await supabase
-    .from("memberships")
-    .select(`
-      role,
-      workspaces (
-        id,
-        name,
-        slug,
-        entitlements (
-          plan,
-          monthly_job_limit,
-          parallel_job_limit
-        )
+  const membershipSelect = `
+    role,
+    workspaces (
+      id,
+      name,
+      slug,
+      entitlements (
+        plan,
+        monthly_job_limit,
+        parallel_job_limit
       )
-    `)
+    )
+  `;
+
+  const { data: membership, error: membershipError } = await supabase
+    .from("memberships")
+    .select(membershipSelect)
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  if (!membership || !membership.workspaces) {
+  let resolvedMembership = membership;
+
+  if (membershipError) {
+    try {
+      const supabaseAdmin = getSupabaseAdminClient();
+      const { data: adminMembership, error: adminMembershipError } = await supabaseAdmin
+        .from("memberships")
+        .select(membershipSelect)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (adminMembershipError) {
+        throw adminMembershipError;
+      }
+      resolvedMembership = adminMembership;
+    } catch (error) {
+      console.error("Failed to fetch membership", error);
+      return null;
+    }
+  }
+
+  if (!resolvedMembership || !resolvedMembership.workspaces) {
     // Edge case: Trigger hasn't finished or user has no workspace
     return {
       id: user.id,
@@ -49,13 +77,19 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     };
   }
 
-  const workspace = Array.isArray(membership.workspaces)
-    ? membership.workspaces[0]
-    : membership.workspaces;
+  const workspace = Array.isArray(resolvedMembership.workspaces)
+    ? resolvedMembership.workspaces[0]
+    : resolvedMembership.workspaces;
   
   const entitlements = Array.isArray(workspace.entitlements)
     ? workspace.entitlements[0]
     : workspace.entitlements;
+  const role = MEMBERSHIP_ROLES.includes(resolvedMembership.role as MembershipRole)
+    ? resolvedMembership.role as MembershipRole
+    : "viewer";
+  const plan = typeof entitlements?.plan === "string" && entitlements.plan.trim()
+    ? entitlements.plan
+    : "trial";
 
   return {
     id: user.id,
@@ -66,8 +100,8 @@ export async function getCurrentUser(): Promise<AppUser | null> {
       name: workspace.name,
       slug: workspace.slug,
     },
-    role: membership.role as any,
-    plan: (entitlements?.plan || "trial") as any,
+    role,
+    plan,
     monthlyJobLimit: entitlements?.monthly_job_limit ?? 10,
     parallelJobLimit: entitlements?.parallel_job_limit ?? 1,
   };

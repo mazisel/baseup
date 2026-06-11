@@ -12,14 +12,14 @@ type PackageGridCopy = {
 
 const GRID_COPY: Record<Locale, PackageGridCopy> = {
   tr: {
-    cta: "Job başlat",
+    cta: "İşlemi başlat",
     credits: "kredi",
-    eyebrow: "Araçlar"
+    eyebrow: "İşlemler"
   },
   en: {
-    cta: "Start job",
+    cta: "Start operation",
     credits: "credits",
-    eyebrow: "Tools"
+    eyebrow: "Operations"
   }
 };
 

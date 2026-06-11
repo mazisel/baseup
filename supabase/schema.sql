@@ -51,16 +51,16 @@ create table if not exists public.job_events (
   created_at timestamptz not null default now()
 );
 
--- Admin-managed pricing packages
+-- Admin-managed system plans / pricing packages
 create table if not exists public.packages (
   id uuid primary key default gen_random_uuid(),
-  slug text not null unique,             -- 'growth', 'scale', 'enterprise'
-  name text not null,                     -- 'Growth Paketi'
+  slug text not null unique,             -- System plan code: 'basic', 'growth', 'scale'
+  name text not null,                     -- 'Basic'
   description text not null default '',
-  price_kurus integer not null default 0, -- Kuruş cinsinden (99900 = 999 TL)
-  currency text not null default 'TL',
+  price_kurus integer not null default 0, -- Minor currency unit (USD cents, e.g. 2900 = $29.00)
+  currency text not null default 'USD',
   billing_period text not null default 'monthly' check (billing_period in ('monthly', 'yearly', 'one_time')),
-  plan_id text not null default 'growth', -- Hangi plana eşitlenecek (trial, growth, scale)
+  plan_id text not null default 'basic', -- Usually matches slug; stored in entitlements.plan
   monthly_job_limit integer not null default 50,
   parallel_job_limit integer not null default 2,
   features jsonb not null default '[]'::jsonb, -- ["Sınırsız takım üyesi", "Öncelikli destek"]
@@ -75,7 +75,7 @@ create table if not exists public.coupons (
   id uuid primary key default gen_random_uuid(),
   code text not null unique,
   discount_type text not null check (discount_type in ('percentage', 'fixed')),
-  discount_value integer not null, -- Yüzde ise 1-100, Sabit ise kuruş cinsinden
+  discount_value integer not null, -- Percentage: 1-100, fixed amount: USD cents
   max_uses integer, -- Null ise sınırsız
   used_count integer not null default 0,
   expires_at timestamptz, -- Null ise süresiz
@@ -84,6 +84,22 @@ create table if not exists public.coupons (
   updated_at timestamptz not null default now()
 );
 
+-- PayTR payment orders: merchant_oid must be alphanumeric, so order metadata
+-- (workspace/package/coupon) is stored here instead of being encoded in the oid.
+create table if not exists public.payment_orders (
+  id uuid primary key default gen_random_uuid(),
+  merchant_oid text not null unique,
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  package_id uuid not null references public.packages(id) on delete restrict,
+  coupon_code text,
+  amount_kurus integer not null,
+  status text not null default 'pending' check (status in ('pending', 'paid', 'failed')),
+  created_at timestamptz not null default now(),
+  processed_at timestamptz
+);
+
+create index if not exists payment_orders_workspace_idx on public.payment_orders(workspace_id);
+
 alter table public.workspaces enable row level security;
 alter table public.memberships enable row level security;
 alter table public.entitlements enable row level security;
@@ -91,6 +107,39 @@ alter table public.job_runs enable row level security;
 alter table public.job_events enable row level security;
 alter table public.packages enable row level security;
 alter table public.coupons enable row level security;
+-- payment_orders: no policies on purpose; only the service role (token/callback routes) touches it.
+alter table public.payment_orders enable row level security;
+
+create or replace function public.is_workspace_member(target_workspace_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+    from public.memberships m
+    where m.workspace_id = target_workspace_id
+      and m.user_id = auth.uid()
+  );
+$$;
+
+create or replace function public.has_workspace_role(target_workspace_id uuid, allowed_roles text[])
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+    from public.memberships m
+    where m.workspace_id = target_workspace_id
+      and m.user_id = auth.uid()
+      and m.role = any(allowed_roles)
+  );
+$$;
 
 -- Coupons are readable by everyone (to validate them), writable only via service_role
 create policy "anyone can read active coupons"
@@ -104,69 +153,44 @@ create policy "anyone can read active packages"
 
 create policy "workspace members can read workspaces"
   on public.workspaces for select
-  using (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = id and m.user_id = auth.uid()
-  ));
+  using (public.is_workspace_member(id));
 
 create policy "workspace members can read memberships"
   on public.memberships for select
-  using (user_id = auth.uid() or exists (
-    select 1 from public.memberships m
-    where m.workspace_id = memberships.workspace_id and m.user_id = auth.uid()
-  ));
+  using (user_id = auth.uid() or public.is_workspace_member(workspace_id));
 
 create policy "workspace admins can insert memberships"
   on public.memberships for insert
-  with check (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = workspace_id and m.user_id = auth.uid() and m.role in ('owner', 'admin')
-  ));
+  with check (public.has_workspace_role(workspace_id, array['owner', 'admin']));
 
 create policy "workspace admins can update memberships"
   on public.memberships for update
-  using (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = memberships.workspace_id and m.user_id = auth.uid() and m.role in ('owner', 'admin')
-  ));
+  using (public.has_workspace_role(workspace_id, array['owner', 'admin']))
+  with check (public.has_workspace_role(workspace_id, array['owner', 'admin']));
 
 create policy "workspace admins can delete memberships"
   on public.memberships for delete
-  using (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = memberships.workspace_id and m.user_id = auth.uid() and m.role in ('owner', 'admin')
-  ));
+  using (public.has_workspace_role(workspace_id, array['owner', 'admin']));
 
 create policy "workspace members can read entitlements"
   on public.entitlements for select
-  using (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = entitlements.workspace_id and m.user_id = auth.uid()
-  ));
+  using (public.is_workspace_member(workspace_id));
 
 create policy "workspace members can read jobs"
   on public.job_runs for select
-  using (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = job_runs.workspace_id and m.user_id = auth.uid()
-  ));
+  using (public.is_workspace_member(workspace_id));
 
 create policy "workspace operators can create jobs"
   on public.job_runs for insert
-  with check (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = job_runs.workspace_id
-      and m.user_id = auth.uid()
-      and m.role in ('owner', 'admin', 'operator')
-  ));
+  with check (public.has_workspace_role(workspace_id, array['owner', 'admin', 'operator']));
 
 create policy "workspace members can read job events"
   on public.job_events for select
   using (exists (
     select 1
     from public.job_runs j
-    join public.memberships m on m.workspace_id = j.workspace_id
-    where j.id = job_events.job_id and m.user_id = auth.uid()
+    where j.id = job_events.job_id
+      and public.is_workspace_member(j.workspace_id)
   ));
 
 -- ==========================================
@@ -192,40 +216,31 @@ create table if not exists public.health_events (
   created_at timestamptz not null default now()
 );
 
+create index if not exists health_monitors_workspace_id_idx on public.health_monitors(workspace_id);
+create index if not exists health_events_monitor_id_created_at_idx on public.health_events(monitor_id, created_at desc);
+
 alter table public.health_monitors enable row level security;
 alter table public.health_events enable row level security;
 
 create policy "workspace members can read monitors"
   on public.health_monitors for select
-  using (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = health_monitors.workspace_id and m.user_id = auth.uid()
-  ));
+  using (public.is_workspace_member(workspace_id));
 
 create policy "workspace operators can insert monitors"
   on public.health_monitors for insert
-  with check (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = health_monitors.workspace_id
-      and m.user_id = auth.uid()
-      and m.role in ('owner', 'admin', 'operator')
-  ));
+  with check (public.has_workspace_role(workspace_id, array['owner', 'admin', 'operator']));
 
 create policy "workspace operators can delete monitors"
   on public.health_monitors for delete
-  using (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = health_monitors.workspace_id
-      and m.user_id = auth.uid()
-      and m.role in ('owner', 'admin', 'operator')
-  ));
+  using (public.has_workspace_role(workspace_id, array['owner', 'admin', 'operator']));
 
 create policy "workspace members can read health events"
   on public.health_events for select
   using (exists (
-    select 1 from public.health_monitors hm
-    join public.memberships m on m.workspace_id = hm.workspace_id
-    where hm.id = health_events.monitor_id and m.user_id = auth.uid()
+    select 1
+    from public.health_monitors hm
+    where hm.id = health_events.monitor_id
+      and public.is_workspace_member(hm.workspace_id)
   ));
 
 -- ==========================================
@@ -245,29 +260,15 @@ alter table public.workspace_invitations enable row level security;
 
 create policy "workspace operators can view invitations"
   on public.workspace_invitations for select
-  using (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = workspace_invitations.workspace_id
-      and m.user_id = auth.uid()
-  ));
+  using (public.is_workspace_member(workspace_id));
 
 create policy "workspace operators can insert invitations"
   on public.workspace_invitations for insert
-  with check (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = workspace_invitations.workspace_id
-      and m.user_id = auth.uid()
-      and m.role in ('owner', 'admin')
-  ));
+  with check (public.has_workspace_role(workspace_id, array['owner', 'admin']));
 
 create policy "workspace operators can delete invitations"
   on public.workspace_invitations for delete
-  using (exists (
-    select 1 from public.memberships m
-    where m.workspace_id = workspace_invitations.workspace_id
-      and m.user_id = auth.uid()
-      and m.role in ('owner', 'admin')
-  ));
+  using (public.has_workspace_role(workspace_id, array['owner', 'admin']));
 
 -- ==========================================
 -- Triggers for automatic workspace creation

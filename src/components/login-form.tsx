@@ -34,23 +34,28 @@ export function LoginForm({ copy, brand }: { copy: AuthCopy; brand: string }) {
     setLoading(true);
     setError("");
 
-    const response = await authenticateWithPassword(email, password, name, mode);
+    try {
+      const response = await authenticateWithPassword(email, password, name, mode);
 
-    if (response?.error) {
-      setError(response.error);
+      if (response?.error) {
+        setError(response.error);
+        setLoading(false);
+        return;
+      }
+
+      if (response?.redirectTo) {
+        router.push(response.redirectTo);
+        router.refresh();
+        return;
+      }
+
+      setNeedsConfirmation(Boolean(response?.needsConfirmation));
+      setSuccess(true);
+    } catch {
+      setError(copy.error);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    if (response?.redirectTo) {
-      router.push(response.redirectTo);
-      router.refresh();
-      return;
-    }
-
-    setNeedsConfirmation(Boolean(response?.needsConfirmation));
-    setSuccess(true);
-    setLoading(false);
   }
 
   if (success) {

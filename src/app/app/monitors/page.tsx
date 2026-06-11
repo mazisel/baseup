@@ -15,12 +15,20 @@ export default function MonitorsPage() {
 
   async function fetchMonitors() {
     setLoading(true);
-    const res = await fetch("/api/monitors");
-    if (res.ok) {
-      const data = await res.json();
-      setMonitors(data.monitors || []);
+    setError("");
+    try {
+      const res = await fetch("/api/monitors");
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setMonitors(data.monitors || []);
+      } else {
+        setError(data.error || "Monitörler yüklenemedi.");
+      }
+    } catch {
+      setError("Sunucuya ulaşılamadı. Bağlantınızı kontrol edin.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -32,37 +40,49 @@ export default function MonitorsPage() {
     setAdding(true);
     setError("");
 
-    const res = await fetch("/api/monitors", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, url: newUrl })
-    });
+    try {
+      const res = await fetch("/api/monitors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName, url: newUrl })
+      });
 
-    if (res.ok) {
-      setNewName("");
-      setNewUrl("");
-      await fetchMonitors();
-    } else {
-      const data = await res.json();
-      setError(data.error || "Failed to add monitor");
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setNewName("");
+        setNewUrl("");
+        await fetchMonitors();
+      } else {
+        setError(data.error || "Monitör eklenemedi.");
+      }
+    } catch {
+      setError("Sunucuya ulaşılamadı. Bağlantınızı kontrol edin.");
+    } finally {
+      setAdding(false);
     }
-    setAdding(false);
   }
 
   async function deleteMonitor(id: string) {
     if (!confirm("Emin misiniz? Bu monitör silinecektir.")) return;
-    
-    const res = await fetch(`/api/monitors/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      await fetchMonitors();
+
+    try {
+      const res = await fetch(`/api/monitors/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        await fetchMonitors();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Monitör silinemedi.");
+      }
+    } catch {
+      setError("Sunucuya ulaşılamadı. Bağlantınızı kontrol edin.");
     }
   }
 
   function getStatusIcon(status: string) {
-    if (status === "up") return <CheckCircle2 size={16} className="text-success" color="#10b981" />;
-    if (status === "down") return <AlertCircle size={16} className="text-danger" color="#ef4444" />;
-    if (status === "paused") return <PauseCircle size={16} color="#9ca3af" />;
-    return <Activity size={16} className="text-muted" color="#9ca3af" />;
+    if (status === "up") return <CheckCircle2 size={16} color="var(--green)" />;
+    if (status === "down") return <AlertCircle size={16} color="var(--red)" />;
+    if (status === "paused") return <PauseCircle size={16} color="var(--muted)" />;
+    return <Activity size={16} color="var(--muted)" />;
   }
 
   return (
@@ -70,7 +90,7 @@ export default function MonitorsPage() {
       <div className="page-head">
         <div>
           <h1 style={{ fontSize: 38 }}>Uptime Monitors</h1>
-          <p className="muted">Sunucularınızın ve API'lerinizin durumunu 7/24 izleyin.</p>
+          <p className="muted">Sunucularınızın ve API uç noktalarınızın durumunu 7/24 izleyin.</p>
         </div>
       </div>
 
@@ -90,14 +110,14 @@ export default function MonitorsPage() {
             {adding ? "Ekleniyor..." : "Ekle"}
           </button>
         </form>
-        {error && <p className="notice" style={{ marginTop: 16, color: '#ef4444' }}>{error}</p>}
+        {error && <p className="notice" role="alert" style={{ marginTop: 16 }}>{error}</p>}
       </section>
 
       {loading ? (
         <p className="muted">Yükleniyor...</p>
       ) : monitors.length === 0 ? (
         <div className="panel" style={{ textAlign: 'center', padding: '40px 20px' }}>
-          <Globe size={48} color="#ddd" style={{ marginBottom: 16 }} />
+          <Globe size={48} color="var(--muted)" style={{ marginBottom: 16 }} />
           <h3>Henüz Monitör Yok</h3>
           <p className="muted">İzlemek istediğiniz sunucu veya API uç noktasını yukarıdan ekleyin.</p>
         </div>
@@ -110,13 +130,13 @@ export default function MonitorsPage() {
                   {getStatusIcon(m.status)}
                   {m.name}
                 </h3>
-                <button onClick={() => deleteMonitor(m.id)} className="button ghost" style={{ padding: 4, color: '#ef4444' }}>
+                <button onClick={() => deleteMonitor(m.id)} className="button ghost" style={{ padding: 4, color: "var(--red)" }}>
                   <Trash2 size={16} />
                 </button>
               </div>
               <p className="muted" style={{ fontSize: 13, wordBreak: 'break-all' }}>{m.url}</p>
               
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
                 <span className="muted">Durum: <strong style={{ textTransform: 'capitalize' }}>{m.status}</strong></span>
                 <span className="muted">Son kontrol: {m.lastCheckedAt ? new Date(m.lastCheckedAt).toLocaleString() : 'Bekleniyor'}</span>
               </div>

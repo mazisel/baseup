@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { getCurrentUser } from "@/lib/auth";
+import { getPreferences } from "@/lib/preferences";
+import { rateLimit } from "@/lib/rate-limit";
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -21,10 +23,36 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const { locale } = await getPreferences();
+    if (!["owner", "admin"].includes(user.role)) {
+      return NextResponse.json({
+        error: locale === "tr"
+          ? "Yalnızca workspace sahibi veya admin ödeme başlatabilir."
+          : "Only the workspace owner or an admin can start a payment."
+      }, { status: 403 });
+    }
+    if (user.workspace.id === "pending") {
+      return NextResponse.json({
+        error: locale === "tr"
+          ? "Çalışma alanınız henüz hazırlanıyor. Lütfen birkaç saniye sonra tekrar deneyin."
+          : "Your workspace is still being prepared. Please try again in a few seconds."
+      }, { status: 409 });
+    }
 
-    const { packageId, couponCode } = await request.json(); // Accept optional couponCode
+    const { ok } = rateLimit(`paytr:${user.id}`);
+    if (!ok) {
+      return NextResponse.json({
+        error: locale === "tr"
+          ? "Çok fazla deneme yaptınız. Lütfen biraz bekleyin."
+          : "Too many attempts. Please wait a moment."
+      }, { status: 429, headers: { "Retry-After": "60" } });
+    }
+
+    const body = await request.json().catch(() => null) as { packageId?: string; couponCode?: string | null } | null;
+    const packageId = body?.packageId;
+    const couponCode = body?.couponCode || null;
     if (!packageId) {
-      return NextResponse.json({ error: "Invalid package" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
 
     // Fetch package from database
@@ -40,6 +68,7 @@ export async function POST(request: Request) {
     }
 
     let payment_amount = pkg.price_kurus; // Kuruş cinsinden
+    let appliedCouponCode: string | null = null;
 
     // Kupon doğrulama ve indirim uygulama
     if (couponCode) {
@@ -63,12 +92,36 @@ export async function POST(request: Request) {
             payment_amount -= coupon.discount_value;
           }
           if (payment_amount < 0) payment_amount = 0;
+          appliedCouponCode = coupon.code;
         }
       }
     }
 
-    // OID format: ORDER_{workspaceId}_{packageId}_{timestamp}_{couponCode(optional)}
-    const merchant_oid = `ORDER_${user.workspace.id}_${pkg.id}_${Date.now()}${couponCode ? '_' + couponCode : ''}`;
+    // PayTR merchant_oid yalnızca alfanümerik karakter kabul eder; bu yüzden sipariş
+    // bilgileri oid içine gömülmek yerine payment_orders tablosunda tutulur ve
+    // callback bu tablodan okur.
+    const merchant_oid = generateMerchantOid();
+    const { error: orderError } = await supabaseAdmin.from("payment_orders").insert({
+      merchant_oid,
+      workspace_id: user.workspace.id,
+      package_id: pkg.id,
+      coupon_code: appliedCouponCode,
+      amount_kurus: payment_amount,
+      status: "pending",
+    });
+
+    if (orderError) {
+      console.error("[paytr/token] Sipariş kaydı oluşturulamadı:", orderError.message);
+      return NextResponse.json(
+        {
+          error: locale === "tr"
+            ? "Ödeme kaydı oluşturulamadı. (payment_orders tablosu eksikse supabase/fix-payments.sql çalıştırılmalı.)"
+            : "Could not create the payment record. (If the payment_orders table is missing, run supabase/fix-payments.sql.)"
+        },
+        { status: 503 }
+      );
+    }
+
     const user_name = user.name;
     const user_address = "Adres Belirtilmedi"; // Dijital servis
     const user_phone = "05555555555";
@@ -126,7 +179,8 @@ export async function POST(request: Request) {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: formData.toString()
+      body: formData.toString(),
+      signal: AbortSignal.timeout(15_000),
     });
 
     const result = await response.json();
@@ -135,11 +189,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ token: result.token });
     } else {
       console.error("PayTR Token Error:", result.reason);
-      return NextResponse.json({ error: result.reason }, { status: 500 });
+      return NextResponse.json({ error: result.reason }, { status: 502 });
     }
 
-  } catch (error: any) {
-    console.error("PayTR Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("PayTR Error:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+function generateMerchantOid() {
+  // Yalnızca harf ve rakam: PayTR oid'de başka karakter kabul etmiyor.
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let oid = "BU";
+  for (const byte of crypto.randomBytes(30)) {
+    oid += chars[byte % chars.length];
+  }
+  return oid;
 }

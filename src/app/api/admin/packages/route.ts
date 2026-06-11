@@ -20,19 +20,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Geçersiz istek gövdesi" }, { status: 400 });
+  }
   const { action, ...data } = body;
 
   try {
     if (action === "create") {
+      const slug = normalizeSlug(data.slug || data.name || "plan");
       const pkg = await createPackage({
-        slug: data.slug || "",
+        slug,
         name: data.name || "",
         description: data.description || "",
         price_kurus: Number(data.price_kurus) || 0,
-        currency: data.currency || "TL",
+        currency: "USD",
         billing_period: data.billing_period || "monthly",
-        plan_id: data.plan_id || "growth",
+        plan_id: slug,
         monthly_job_limit: Number(data.monthly_job_limit) || 50,
         parallel_job_limit: Number(data.parallel_job_limit) || 2,
         features: data.features || [],
@@ -44,7 +48,7 @@ export async function POST(request: Request) {
 
     if (action === "update") {
       if (!data.id) return NextResponse.json({ error: "ID gerekli" }, { status: 400 });
-      await updatePackage(data.id, data.updates || {});
+      await updatePackage(data.id, normalizePackageUpdates(data.updates || data));
       return NextResponse.json({ success: true });
     }
 
@@ -55,7 +59,36 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Bilinmeyen hata" }, { status: 500 });
   }
+}
+
+function normalizePackageUpdates(updates: Record<string, unknown>) {
+  const normalized = { ...updates };
+  const slugSource = typeof normalized.slug === "string" && normalized.slug.trim()
+    ? normalized.slug
+    : typeof normalized.name === "string"
+      ? normalized.name
+      : "";
+  const slug = normalizeSlug(slugSource);
+
+  if (slug) {
+    normalized.slug = slug;
+    normalized.plan_id = slug;
+  }
+  normalized.currency = "USD";
+  if (typeof normalized.price_kurus === "number") {
+    normalized.price_kurus = Math.max(0, Math.round(normalized.price_kurus));
+  }
+
+  return normalized;
+}
+
+function normalizeSlug(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }

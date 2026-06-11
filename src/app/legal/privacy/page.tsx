@@ -13,7 +13,7 @@ export default function PrivacyPage() {
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ marginBottom: 16 }}>1. Toplanan Veriler</h2>
         <p style={{ marginBottom: 16 }}>SupaOps olarak, hizmetlerimizi sunabilmek amacıyla hesap bilgileriniz (e-posta adresi), fatura bilgileriniz (ödeme altyapısı aracılığıyla işlenir) ve uygulama kullanım loglarınız toplanmaktadır.</p>
-        <p>Sunucu taşıma ve kurulum işlemleriniz sırasında girdiğiniz şifre veya "secret" anahtarları **veri tabanımızda asla saklanmaz**; işlem tamamlandığında veya hata aldığında bellekten temizlenir.</p>
+        <p>Sunucu taşıma ve kurulum işlemleriniz sırasında girdiğiniz şifre veya &quot;secret&quot; anahtarları **veri tabanımızda asla saklanmaz**; işlem tamamlandığında veya hata aldığında bellekten temizlenir.</p>
       </section>
 
       <section style={{ marginBottom: 32 }}>

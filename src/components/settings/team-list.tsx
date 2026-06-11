@@ -13,6 +13,10 @@ type Member = {
   joinedAt: string;
 };
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export function TeamList({ initialMembers, currentUserRole, currentUserId }: { initialMembers: Member[], currentUserRole: string, currentUserId: string }) {
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -33,8 +37,8 @@ export function TeamList({ initialMembers, currentUserRole, currentUserId }: { i
       await inviteMember(inviteEmail, inviteRole);
       setInviteEmail("");
       router.refresh(); // In a real app we might want to manually fetch or just wait for refresh
-    } catch (err: any) {
-      setError(err.message || "Failed to invite user");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Kullanıcı davet edilemedi."));
     } finally {
       setLoading(false);
     }
@@ -44,18 +48,18 @@ export function TeamList({ initialMembers, currentUserRole, currentUserId }: { i
     try {
       await updateMemberRole(userId, newRole);
       setMembers(m => m.map(u => u.id === userId ? { ...u, role: newRole } : u));
-    } catch (err: any) {
-      alert(err.message || "Failed to update role");
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, "Rol güncellenemedi."));
     }
   }
 
   async function handleRemove(userId: string) {
-    if (!confirm("Are you sure you want to remove this member?")) return;
+    if (!confirm("Bu üyeyi kaldırmak istediğinize emin misiniz?")) return;
     try {
       await removeMember(userId);
       setMembers(m => m.filter(u => u.id !== userId));
-    } catch (err: any) {
-      alert(err.message || "Failed to remove user");
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, "Kullanıcı kaldırılamadı."));
     }
   }
 
@@ -63,12 +67,12 @@ export function TeamList({ initialMembers, currentUserRole, currentUserId }: { i
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {canManage && (
         <section className="panel">
-          <h2>Invite Member</h2>
+          <h2>Üye davet et</h2>
           {error && <p className="notice" style={{ marginBottom: 16 }}>{error}</p>}
           <form onSubmit={handleInvite} style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <input 
               type="email" 
-              placeholder="Email address" 
+              placeholder="E-posta adresi" 
               value={inviteEmail} 
               onChange={e => setInviteEmail(e.target.value)} 
               required
@@ -82,14 +86,14 @@ export function TeamList({ initialMembers, currentUserRole, currentUserId }: { i
             </select>
             <button type="submit" className="button primary" disabled={loading}>
               <UserPlus size={16} />
-              Invite
+              Davet et
             </button>
           </form>
         </section>
       )}
 
       <section className="panel">
-        <h2>Workspace Members</h2>
+        <h2>Ekip üyeleri</h2>
         <div className="table-list" style={{ marginTop: 16 }}>
           {members.map(member => (
             <div className="table-row" key={member.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>

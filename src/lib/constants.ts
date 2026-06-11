@@ -13,7 +13,7 @@ import {
   Braces,
   Terminal
 } from "lucide-react";
-import type { MigrationModuleType, PlanId } from "@/types/domain";
+import type { MigrationModuleType } from "@/types/domain";
 import type { Locale } from "@/lib/preference-shared";
 
 export const MODULE_DEFINITIONS: Array<{
@@ -276,7 +276,7 @@ export const MODULE_DEFINITIONS: Array<{
   }
 ];
 
-export const PLAN_LIMITS: Record<PlanId, {
+export const PLAN_LIMITS: Record<string, {
   label: string;
   monthlyJobs: number;
   parallelJobs: number;

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Languages, Moon, Sun } from "lucide-react";
 import type { Locale, Theme } from "@/lib/preference-shared";
 import { LOCALE_COOKIE, THEME_COOKIE } from "@/lib/preference-shared";
@@ -24,6 +25,8 @@ export function PreferenceControls({
   theme: Theme;
   copy: PreferenceCopy;
 }) {
+  const [activeTheme, setActiveTheme] = useState(theme);
+
   function setCookie(name: string, value: string) {
     document.cookie = `${name}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
   }
@@ -34,6 +37,7 @@ export function PreferenceControls({
   }
 
   function changeTheme(nextTheme: Theme) {
+    setActiveTheme(nextTheme);
     setCookie(THEME_COOKIE, nextTheme);
     document.documentElement.dataset.theme = nextTheme;
   }
@@ -62,8 +66,8 @@ export function PreferenceControls({
       <div className="segmented" aria-label={copy.theme}>
         <button
           aria-label={copy.light}
-          aria-pressed={theme === "light"}
-          className={theme === "light" ? "active icon-only" : "icon-only"}
+          aria-pressed={activeTheme === "light"}
+          className={activeTheme === "light" ? "active icon-only" : "icon-only"}
           onClick={() => changeTheme("light")}
           type="button"
         >
@@ -71,8 +75,8 @@ export function PreferenceControls({
         </button>
         <button
           aria-label={copy.dark}
-          aria-pressed={theme === "dark"}
-          className={theme === "dark" ? "active icon-only" : "icon-only"}
+          aria-pressed={activeTheme === "dark"}
+          className={activeTheme === "dark" ? "active icon-only" : "icon-only"}
           onClick={() => changeTheme("dark")}
           type="button"
         >

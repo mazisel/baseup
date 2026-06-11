@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { CreditCard, Database, ShieldCheck } from "lucide-react";
+import { CreditCard, ShieldCheck } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getCopy } from "@/lib/i18n";
 import { listJobs } from "@/lib/jobs";
-import { PLAN_LIMITS } from "@/lib/constants";
 import { getPreferences } from "@/lib/preferences";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +14,7 @@ export default async function SettingsPage() {
   const { locale } = await getPreferences();
   const copy = getCopy(locale);
   const jobs = await listJobs(user);
-  const limits = PLAN_LIMITS[user.plan];
+  const canManageTeam = user.role === "owner" || user.role === "admin";
 
   return (
     <div className="content">
@@ -29,15 +28,15 @@ export default async function SettingsPage() {
       <section className="stats-grid">
         <div className="stat">
           <span>{copy.settings.plan}</span>
-          <strong>{limits.label}</strong>
+          <strong>{formatPlanName(user.plan)}</strong>
         </div>
         <div className="stat">
           <span>{copy.settings.monthlyLimit}</span>
-          <strong>{limits.monthlyJobs}</strong>
+          <strong>{user.monthlyJobLimit}</strong>
         </div>
         <div className="stat">
           <span>{copy.settings.parallelLimit}</span>
-          <strong>{limits.parallelJobs}</strong>
+          <strong>{user.parallelJobLimit}</strong>
         </div>
         <div className="stat">
           <span>{copy.settings.usage}</span>
@@ -46,14 +45,16 @@ export default async function SettingsPage() {
       </section>
 
       <div className="module-grid">
-        <Link href="/app/settings/team" className="module-card" style={{ textDecoration: "none", color: "inherit" }}>
-          <ShieldCheck />
-          <div>
-            <h3>Team & Workspace</h3>
-            <p>Manage members and their roles</p>
-          </div>
-          <span className="tag">Owner / Admin</span>
-        </Link>
+        {canManageTeam ? (
+          <Link href="/app/settings/team" className="module-card" style={{ textDecoration: "none", color: "inherit" }}>
+            <ShieldCheck />
+            <div>
+              <h3>{copy.settings.teamTitle}</h3>
+              <p>{copy.settings.teamDescription}</p>
+            </div>
+            <span className="tag">{copy.settings.teamTag}</span>
+          </Link>
+        ) : null}
 
         <Link href="/app/settings/billing" className="module-card" style={{ textDecoration: "none", color: "inherit" }}>
           <CreditCard />
@@ -63,25 +64,15 @@ export default async function SettingsPage() {
           </div>
           <span className="tag">{copy.settings.billingTag}</span>
         </Link>
-
-        <section className="module-card">
-          <Database />
-          <div>
-            <h3>{copy.settings.dbTitle}</h3>
-            <p>{copy.settings.dbDescription}</p>
-          </div>
-          <span className="tag">{copy.settings.dbTag}</span>
-        </section>
-
-        <section className="module-card">
-          <ShieldCheck />
-          <div>
-            <h3>{copy.settings.credentialTitle}</h3>
-            <p>{copy.settings.credentialDescription}</p>
-          </div>
-          <span className="tag">{copy.settings.credentialTag}</span>
-        </section>
       </div>
     </div>
   );
+}
+
+function formatPlanName(plan: string) {
+  return plan
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || "Trial";
 }

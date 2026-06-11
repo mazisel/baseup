@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowUpCircle } from "lucide-react";
 
 type Workspace = {
   id: string;

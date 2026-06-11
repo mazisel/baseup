@@ -1,4 +1,4 @@
-export type PlanId = "trial" | "growth" | "scale";
+export type PlanId = string;
 
 export type MembershipRole = "owner" | "admin" | "operator" | "viewer";
 

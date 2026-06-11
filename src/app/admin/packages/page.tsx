@@ -10,8 +10,8 @@ export default async function AdminPackagesPage() {
     <div className="content">
       <div className="page-head">
         <div>
-          <h1 style={{ fontSize: 32 }}>Paketler ve Planlar</h1>
-          <p className="muted">Kullanıcıların satın alabileceği paketleri yönetin ({packages.length} adet)</p>
+          <h1 style={{ fontSize: 32 }}>Sistem Planları</h1>
+          <p className="muted">Kullanıcıların satın alabileceği planları, fiyatları ve limitleri yönetin ({packages.length} adet)</p>
         </div>
       </div>
 

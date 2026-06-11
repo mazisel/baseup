@@ -11,7 +11,7 @@ export default async function AdminWorkspacesPage() {
       <div className="page-head">
         <div>
           <h1 style={{ fontSize: 32 }}>Workspace Yönetimi</h1>
-          <p className="muted">Tüm workspace'ler ve plan yönetimi ({workspaces.length} adet)</p>
+          <p className="muted">Tüm workspace&apos;ler ve plan yönetimi ({workspaces.length} adet)</p>
         </div>
       </div>
 

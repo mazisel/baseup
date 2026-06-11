@@ -13,9 +13,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="app-layout">
-      <aside className="sidebar" style={{ borderRight: "2px solid var(--error, #e53e3e)" }}>
+      <aside className="sidebar">
         <div className="brand" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Shield size={20} style={{ color: "var(--error, #e53e3e)" }} />
+          <Shield size={20} style={{ color: "var(--green)" }} />
           <span style={{ fontWeight: 700 }}>Super Admin</span>
         </div>
         <nav className="side-nav" aria-label="Admin Navigation">
@@ -29,7 +29,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </Link>
           <Link href="/admin/workspaces">
             <Building2 size={18} />
-            Workspace'ler
+            Hesaplar
           </Link>
           <Link href="/admin/jobs">
             <ListTodo size={18} />
@@ -52,9 +52,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </div>
       </aside>
       <main className="app-main">
-        <div className="app-topbar" style={{ borderBottom: "2px solid var(--error, #e53e3e)" }}>
+        <div className="app-topbar">
           <div>
-            <strong style={{ color: "var(--error, #e53e3e)" }}>🔒 Super Admin Panel</strong>
+            <strong>Super Admin Panel</strong>
             <div className="muted">{user.email}</div>
           </div>
         </div>

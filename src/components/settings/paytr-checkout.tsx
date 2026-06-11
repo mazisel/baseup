@@ -2,13 +2,21 @@
 
 import { useState } from "react";
 import Script from "next/script";
+import { formatMoney } from "@/lib/money";
+
+type DiscountInfo = {
+  originalPrice: number;
+  finalPrice: number;
+  discountAmount: number;
+  currency: string;
+};
 
 export function PaytrCheckout({ packageId }: { packageId: string }) {
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [couponCode, setCouponCode] = useState("");
-  const [discountInfo, setDiscountInfo] = useState<{ originalPrice: number, finalPrice: number, discountAmount: number } | null>(null);
+  const [discountInfo, setDiscountInfo] = useState<DiscountInfo | null>(null);
   const [couponError, setCouponError] = useState("");
   const [couponLoading, setCouponLoading] = useState(false);
 
@@ -31,7 +39,7 @@ export function PaytrCheckout({ packageId }: { packageId: string }) {
         setCouponError(data.error || "Geçersiz kupon");
         setDiscountInfo(null);
       }
-    } catch (err: any) {
+    } catch {
       setCouponError("Bağlantı hatası");
     } finally {
       setCouponLoading(false);
@@ -56,8 +64,8 @@ export function PaytrCheckout({ packageId }: { packageId: string }) {
       } else {
         setError(data.error || "Failed to initialize payment");
       }
-    } catch (err: any) {
-      setError(err.message || "Network error");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Network error");
     } finally {
       setLoading(false);
     }
@@ -122,15 +130,15 @@ export function PaytrCheckout({ packageId }: { packageId: string }) {
           <div style={{ marginTop: 16, padding: 12, borderTop: "1px dashed var(--border)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
               <span>Orijinal Tutar:</span>
-              <span style={{ textDecoration: "line-through" }}>{(discountInfo.originalPrice / 100).toLocaleString("tr-TR")} TL</span>
+              <span style={{ textDecoration: "line-through" }}>{formatMoney(discountInfo.originalPrice, discountInfo.currency)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, color: "var(--success, #006600)" }}>
               <span>İndirim:</span>
-              <span>- {(discountInfo.discountAmount / 100).toLocaleString("tr-TR")} TL</span>
+              <span>- {formatMoney(discountInfo.discountAmount, discountInfo.currency)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold", fontSize: 18, marginTop: 12, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
               <span>Ödenecek Tutar:</span>
-              <span>{(discountInfo.finalPrice / 100).toLocaleString("tr-TR")} TL</span>
+              <span>{formatMoney(discountInfo.finalPrice, discountInfo.currency)}</span>
             </div>
           </div>
         )}

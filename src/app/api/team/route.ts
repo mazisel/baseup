@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { getPreferences } from "@/lib/preferences";
 import { createClient as createServerClient } from "@/lib/supabase/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 
-export async function GET(req: Request) {
+export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (user.workspace.id === "pending") {
+    return NextResponse.json({ members: [] });
+  }
 
   const supabase = await createServerClient();
 
@@ -17,23 +22,32 @@ export async function GET(req: Request) {
 
   if (mError) return NextResponse.json({ error: mError.message }, { status: 400 });
 
-  // Get emails for the user_ids (requires service_role)
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  // Get emails for the user_ids (requires service_role).
+  // Tek listUsers çağrısı: üye başına ayrı admin isteği (N+1) atma.
+  let supabaseAdmin;
+  try {
+    supabaseAdmin = getSupabaseAdminClient();
+  } catch (error) {
+    console.error("[api/team] Admin client error:", error);
+    return NextResponse.json({ error: "Supabase service role is not configured." }, { status: 503 });
+  }
 
-  const activeMembers = [];
-  for (const m of memberships || []) {
-    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(m.user_id);
-    activeMembers.push({
+  const { data: usersData, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (usersError) {
+    return NextResponse.json({ error: "Failed to fetch user profiles" }, { status: 500 });
+  }
+  const usersMap = new Map(usersData.users.map(u => [u.id, u]));
+
+  const activeMembers = (memberships || []).map(m => {
+    const authUser = usersMap.get(m.user_id);
+    return {
       id: m.user_id,
-      email: authUser?.user?.email || "Unknown",
+      email: authUser?.email || "Unknown",
       role: m.role,
       status: "active",
       createdAt: m.created_at,
-    });
-  }
+    };
+  });
 
   // Get pending invitations
   const { data: invitations, error: iError } = await supabase
@@ -60,27 +74,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { email, role } = await req.json();
-  if (!email || !role || !["admin", "operator", "viewer"].includes(role)) {
+  const { locale } = await getPreferences();
+  if (user.workspace.id === "pending") {
+    return NextResponse.json({
+      error: locale === "tr"
+        ? "Çalışma alanınız henüz hazırlanıyor. Lütfen birkaç saniye sonra tekrar deneyin."
+        : "Your workspace is still being prepared. Please try again in a few seconds."
+    }, { status: 409 });
+  }
+
+  const body = await req.json().catch(() => null) as { email?: unknown; role?: unknown } | null;
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  const role = typeof body?.role === "string" ? body.role : "";
+  if (!email || !email.includes("@") || !["admin", "operator", "viewer"].includes(role)) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  let supabaseAdmin;
+  try {
+    supabaseAdmin = getSupabaseAdminClient();
+  } catch (error) {
+    console.error("[api/team] Admin client error:", error);
+    return NextResponse.json({ error: "Supabase service role is not configured." }, { status: 503 });
+  }
 
-  // Search for the user by email
-  // Supabase admin api doesn't have getUserByEmail, we list users and find
-  // Note: For a very large user base, we'd use a search, but listUsers has pagination.
-  // We can just try to inviteUserByEmail. If it fails because user exists, it's fine.
-  // Actually, we can use an internal RPC or just insert into invitations and let handle_new_user do the rest.
-  // Let's just insert into workspace_invitations. If they already exist, we can manually check memberships later.
-  // Let's write a simple approach: just insert into invitations. Wait, if they already exist, the trigger won't run.
-  
-  // Let's use the API to list users (with search query)
-  const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
-  const existingUser = users.find((u: any) => u.email === email);
+  // Search for the user by email (case-insensitive). listUsers sayfalıdır;
+  // ilk 1000 kullanıcıyı tarar — bulunamazsa davet akışına düşer.
+  const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const existingUser = usersData?.users.find(u => (u.email || "").toLowerCase() === email);
 
   const supabase = await createServerClient();
 

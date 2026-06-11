@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { getModules, PLAN_LIMITS } from "@/lib/constants";
+import { getModules } from "@/lib/constants";
 import { getCurrentUser } from "@/lib/auth";
 import { getCopy } from "@/lib/i18n";
 import { listJobs } from "@/lib/jobs";
@@ -20,7 +20,7 @@ export default async function DashboardPage() {
   const running = jobs.filter(job => job.status === "running").length;
   const completed = jobs.filter(job => job.status === "success").length;
   const failed = jobs.filter(job => job.status === "error").length;
-  const limit = PLAN_LIMITS[user.plan].monthlyJobs;
+  const limit = user.monthlyJobLimit;
 
   return (
     <div className="content">

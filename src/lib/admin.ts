@@ -60,7 +60,8 @@ export async function getAdminUsers() {
     .from("memberships")
     .select("user_id, role, workspace_id, workspaces(name, slug), created_at");
 
-  const membershipMap = new Map<string, any>();
+  type MembershipRow = NonNullable<typeof memberships>[number];
+  const membershipMap = new Map<string, MembershipRow>();
   for (const m of memberships || []) {
     membershipMap.set(m.user_id, m);
   }
@@ -97,7 +98,8 @@ export async function getAdminWorkspaces() {
     .order("created_at", { ascending: false });
 
   const { data: entitlements } = await supabaseAdmin.from("entitlements").select("workspace_id, plan, monthly_job_limit, parallel_job_limit");
-  const planMap = new Map<string, any>();
+  type EntitlementRow = NonNullable<typeof entitlements>[number];
+  const planMap = new Map<string, EntitlementRow>();
   for (const e of entitlements || []) {
     planMap.set(e.workspace_id, e);
   }

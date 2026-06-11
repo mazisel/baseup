@@ -1,10 +1,13 @@
 import { Queue } from "bullmq";
-import Redis from "ioredis";
 
 const connection = {
   host: process.env.REDIS_HOST || "localhost",
   port: parseInt(process.env.REDIS_PORT || "6379", 10),
   maxRetriesPerRequest: null,
+  // Redis erişilemezken komutları süresiz kuyruklamak yerine anında hata ver;
+  // aksi halde API istekleri (ör. iş oluşturma) sonsuza kadar askıda kalıyor.
+  enableOfflineQueue: false,
+  retryStrategy: (times: number) => Math.min(times * 1_000, 30_000),
 };
 
 export const migrationQueue = new Queue("migration-jobs", {
@@ -20,15 +23,15 @@ export const migrationQueue = new Queue("migration-jobs", {
   },
 });
 
+migrationQueue.on("error", error => {
+  const code = (error as NodeJS.ErrnoException).code;
+  console.error(`[queue:migration-jobs] Redis bağlantı hatası${code ? ` (${code})` : ""}: ${error.message}`);
+});
+
 export type MigrationJobPayload = {
   jobId: string; // The UUID from job_runs table
   workspaceId: string;
   type: string;
   // Extracted job input (target URL, etc.) will be masked and handled
-  inputs: Record<string, any>;
+  inputs: Record<string, unknown>;
 };
-
-export const cronQueue = new Queue("cron-jobs", {
-  connection,
-  defaultJobOptions: { removeOnComplete: true, removeOnFail: true }
-});

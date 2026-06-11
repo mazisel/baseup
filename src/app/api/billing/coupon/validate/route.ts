@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { getPreferences } from "@/lib/preferences";
+import { rateLimit } from "@/lib/rate-limit";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -16,22 +18,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { code, packageId } = await request.json();
+    const { locale } = await getPreferences();
 
-    if (!code || !packageId) {
-      return NextResponse.json({ error: "Eksik parametre" }, { status: 400 });
+    // Kupon kodu brute-force denemelerini yavaşlat
+    const { ok } = rateLimit(`coupon:${user.id}`);
+    if (!ok) {
+      return NextResponse.json(
+        { error: locale === "tr" ? "Çok fazla deneme yaptınız. Lütfen biraz bekleyin." : "Too many attempts. Please wait a moment." },
+        { status: 429, headers: { "Retry-After": "60" } }
+      );
     }
 
-    // Paket fiyatını al
+    const body = await request.json().catch(() => null) as { code?: string; packageId?: string } | null;
+    const code = body?.code;
+    const packageId = body?.packageId;
+
+    if (!code || !packageId) {
+      return NextResponse.json({ error: locale === "tr" ? "Eksik parametre" : "Missing parameters" }, { status: 400 });
+    }
+
+    // Plan fiyatını al
     const { data: pkg, error: pkgError } = await supabase
       .from("packages")
-      .select("price_kurus")
+      .select("price_kurus, currency")
       .eq("id", packageId)
       .eq("is_active", true)
       .single();
 
     if (pkgError || !pkg) {
-      return NextResponse.json({ error: "Geçersiz paket" }, { status: 404 });
+      return NextResponse.json({ error: locale === "tr" ? "Geçersiz plan" : "Invalid plan" }, { status: 404 });
     }
 
     // Kuponu kontrol et
@@ -43,21 +58,27 @@ export async function POST(request: Request) {
       .single();
 
     if (couponError || !coupon) {
-      return NextResponse.json({ error: "Geçersiz veya süresi dolmuş kupon kodu" }, { status: 404 });
+      return NextResponse.json({
+        error: locale === "tr" ? "Geçersiz veya süresi dolmuş kupon kodu" : "Invalid or expired coupon code"
+      }, { status: 404 });
     }
 
     // Süre kontrolü
     if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
-      return NextResponse.json({ error: "Bu kuponun kullanım süresi dolmuş" }, { status: 400 });
+      return NextResponse.json({
+        error: locale === "tr" ? "Bu kuponun kullanım süresi dolmuş" : "This coupon has expired"
+      }, { status: 400 });
     }
 
     // Limit kontrolü
     if (coupon.max_uses !== null && coupon.used_count >= coupon.max_uses) {
-      return NextResponse.json({ error: "Bu kuponun kullanım limiti dolmuş" }, { status: 400 });
+      return NextResponse.json({
+        error: locale === "tr" ? "Bu kuponun kullanım limiti dolmuş" : "This coupon has reached its usage limit"
+      }, { status: 400 });
     }
 
     // İndirim hesaplama
-    let originalPrice = pkg.price_kurus;
+    const originalPrice = pkg.price_kurus;
     let finalPrice = originalPrice;
     let discountAmount = 0;
 
@@ -76,11 +97,12 @@ export async function POST(request: Request) {
       originalPrice,
       finalPrice,
       discountAmount,
+      currency: pkg.currency || "USD",
       discountType: coupon.discount_type,
       discountValue: coupon.discount_value
     });
 
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Bilinmeyen hata" }, { status: 500 });
   }
 }

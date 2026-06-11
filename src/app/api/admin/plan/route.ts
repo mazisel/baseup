@@ -8,16 +8,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  const { workspaceId, plan } = await request.json();
+  const body = await request.json().catch(() => null) as { workspaceId?: string; plan?: string } | null;
+  const workspaceId = body?.workspaceId;
+  const plan = body?.plan;
 
-  if (!workspaceId || !["trial", "growth", "scale"].includes(plan)) {
+  if (!workspaceId || !plan || !["trial", "growth", "scale"].includes(plan)) {
     return NextResponse.json({ error: "Invalid parameters" }, { status: 400 });
   }
 
   try {
     await updateWorkspacePlan(workspaceId, plan);
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Bilinmeyen hata" }, { status: 500 });
   }
 }

@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { ArrowLeft, Check } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
-import { PLAN_LIMITS } from "@/lib/constants";
 import { PaytrCheckout } from "@/components/settings/paytr-checkout";
 import { createClient } from "@supabase/supabase-js";
+import { formatMoney } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,6 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const currentPlan = PLAN_LIMITS[user.plan] || PLAN_LIMITS.trial;
   const { packageId: targetPackageId, status } = await searchParams;
 
   // Fetch active packages from database
@@ -39,7 +38,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
         <div className="page-head">
           <div>
             <h1 style={{ fontSize: 38 }}>Güvenli Ödeme</h1>
-            <p className="muted">Seçilen Paket: {selectedPackage.name}</p>
+            <p className="muted">Seçilen plan: {selectedPackage.name}</p>
           </div>
         </div>
 
@@ -57,7 +56,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
       <div className="page-head">
         <div>
-          <h1 style={{ fontSize: 38 }}>Faturalandırma & Plan</h1>
+          <h1 style={{ fontSize: 38 }}>Faturalandırma ve plan</h1>
           <p className="muted">Mevcut planınızı ve limitlerinizi yönetin.</p>
         </div>
       </div>
@@ -75,15 +74,15 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
       )}
 
       <section className="panel" style={{ marginBottom: 24 }}>
-        <h2>Mevcut Planınız: {currentPlan.label}</h2>
+        <h2>Mevcut planınız: {formatPlanName(user.plan)}</h2>
         <div className="stats-grid" style={{ marginTop: 16 }}>
           <div className="stat">
             <span>Aylık İşlem Limiti</span>
-            <strong>{currentPlan.monthlyJobs}</strong>
+            <strong>{user.monthlyJobLimit}</strong>
           </div>
           <div className="stat">
             <span>Eşzamanlı İşlem (Parallel)</span>
-            <strong>{currentPlan.parallelJobs}</strong>
+            <strong>{user.parallelJobLimit}</strong>
           </div>
         </div>
       </section>
@@ -93,16 +92,16 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
           <section key={pkg.id} className="module-card" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             <div style={{ flex: 1 }}>
               <h3>{pkg.name}</h3>
-              <p className="muted" style={{ minHeight: 40 }}>{pkg.description || "Bu paket ile limitlerinizi artırın."}</p>
+              <p className="muted" style={{ minHeight: 40 }}>{pkg.description || "Bu plan ile limitlerinizi artırın."}</p>
               
               <div style={{ fontSize: 24, fontWeight: "bold", margin: "16px 0" }}>
-                {(pkg.price_kurus / 100).toLocaleString("tr-TR")} {pkg.currency}
+                {formatMoney(pkg.price_kurus, pkg.currency || "USD")}
                 <span className="muted" style={{ fontSize: 14, fontWeight: "normal" }}> /{pkg.billing_period === "yearly" ? "Yıl" : "Ay"}</span>
               </div>
 
               <ul style={{ listStyle: "none", padding: 0, margin: "0 0 24px 0" }}>
                 <li style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 14 }}>
-                  <Check size={16} color="var(--success)" /> Ayda {pkg.monthly_job_limit} taşıma
+                  <Check size={16} color="var(--success)" /> Ayda {pkg.monthly_job_limit} işlem
                 </li>
                 <li style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 14 }}>
                   <Check size={16} color="var(--success)" /> {pkg.parallel_job_limit} eşzamanlı işlem
@@ -127,4 +126,12 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
       </div>
     </div>
   );
+}
+
+function formatPlanName(plan: string) {
+  return plan
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || "Trial";
 }

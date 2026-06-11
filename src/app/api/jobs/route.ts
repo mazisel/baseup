@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { createJob, listJobs } from "@/lib/jobs";
+import { createJob, listJobs, checkJobQuota, hasReadyWorkspace, JobQueueUnavailableError } from "@/lib/jobs";
 import { MODULE_DEFINITIONS } from "@/lib/constants";
 import { getPreferences } from "@/lib/preferences";
 import { rateLimit } from "@/lib/rate-limit";
@@ -14,7 +14,12 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return NextResponse.json({ jobs: await listJobs(user) });
+  try {
+    return NextResponse.json({ jobs: await listJobs(user) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
@@ -36,35 +41,34 @@ export async function POST(request: Request) {
   const { locale } = await getPreferences();
   if (!input || !MODULE_DEFINITIONS.some(module => module.id === input.type)) {
     return NextResponse.json({
-      error: locale === "tr" ? "Geçersiz hizmet tipi" : "Invalid service type"
+      error: locale === "tr" ? "Geçersiz işlem tipi" : "Invalid operation type"
     }, { status: 400 });
   }
 
-  // Aylık iş limiti kontrolü (Entitlement Enforcement)
-  const jobs = await listJobs(user);
-  const thisMonth = new Date();
-  thisMonth.setDate(1);
-  thisMonth.setHours(0, 0, 0, 0);
-  const monthlyJobs = jobs.filter(j => new Date(j.createdAt) >= thisMonth).length;
-
-  if (monthlyJobs >= user.monthlyJobLimit) {
+  if (!hasReadyWorkspace(user)) {
     return NextResponse.json({
       error: locale === "tr"
-        ? `Aylık iş limitinize (${user.monthlyJobLimit}) ulaştınız. Planınızı yükseltin.`
-        : `You've reached your monthly job limit (${user.monthlyJobLimit}). Please upgrade your plan.`
-    }, { status: 403 });
+        ? "Çalışma alanınız henüz hazırlanıyor. Lütfen birkaç saniye sonra tekrar deneyin."
+        : "Your workspace is still being prepared. Please try again in a few seconds."
+    }, { status: 409 });
   }
 
-  // Paralel iş limiti kontrolü
-  const runningJobs = jobs.filter(j => j.status === "running" || j.status === "queued").length;
-  if (runningJobs >= user.parallelJobLimit) {
+  try {
+    const quota = await checkJobQuota(user, locale);
+    if (!quota.ok) {
+      return NextResponse.json({ error: quota.error }, { status: quota.status });
+    }
+
+    const job = await createJob(input, user, locale);
+    return NextResponse.json({ job }, { status: 201 });
+  } catch (error) {
+    if (error instanceof JobQueueUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 503, headers: { "Retry-After": "30" } });
+    }
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[api/jobs] İş oluşturma hatası:", message);
     return NextResponse.json({
-      error: locale === "tr"
-        ? `Aynı anda en fazla ${user.parallelJobLimit} iş çalıştırabilirsiniz. Mevcut işlerinizin tamamlanmasını bekleyin.`
-        : `You can run up to ${user.parallelJobLimit} jobs simultaneously. Wait for current jobs to finish.`
-    }, { status: 429 });
+      error: locale === "tr" ? "İş oluşturulamadı. Lütfen tekrar deneyin." : "Failed to create the job. Please try again."
+    }, { status: 500 });
   }
-
-  const job = await createJob(input, user, locale);
-  return NextResponse.json({ job }, { status: 201 });
 }
