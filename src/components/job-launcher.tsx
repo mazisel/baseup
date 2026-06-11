@@ -170,7 +170,6 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
                   <strong>{module.title}</strong>
                   <span className="muted">{module.description}</span>
                 </span>
-                <span className="tag">{module.usageUnits} {copy.launcher.credits}</span>
               </button>
             );
           })}
@@ -193,7 +192,6 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
           </div>
           <div className="selected-package-meta">
             <SelectedIcon size={22} />
-            <span className="tag">{selectedModule.usageUnits} {copy.launcher.credits}</span>
           </div>
         </div>
 
