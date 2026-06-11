@@ -77,17 +77,23 @@ export function startWorker() {
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";
+        // SSH kimlik doğrulama hatası kalıcıdır: yeniden denemek sonucu değiştirmez,
+        // üstelik müşteri sunucusunda fail2ban/lockout tetikleyebilir.
+        const isAuthFailure = /all configured authentication methods failed|permission denied|authentication failed/i.test(message);
         const userFacingMessage = error instanceof LegacyBridgeUnavailableError
           ? message
           : `Migration failed: ${message}`;
         await log("error", userFacingMessage);
+        if (isAuthFailure) {
+          await log("warn", "🔐 SSH kimlik doğrulaması reddedildi. Root şifresini kontrol edip işi yeniden başlatın; bu hata kalıcı olduğu için otomatik tekrar denenmeyecek.");
+        }
         await supabase.from("job_runs").update({ status: "error", error_message: message, finished_at: new Date().toISOString() }).eq("id", jobId);
 
-        const isLastAttempt = job.attemptsMade >= (job.opts.attempts || 1) - 1;
+        const isLastAttempt = isAuthFailure || error instanceof LegacyBridgeUnavailableError || job.attemptsMade >= (job.opts.attempts || 1) - 1;
         if (userEmail && isLastAttempt) {
           await sendJobCompletionEmail(userEmail, jobTitle, "error", message);
         }
-        if (error instanceof LegacyBridgeUnavailableError) {
+        if (isAuthFailure || error instanceof LegacyBridgeUnavailableError) {
           throw new UnrecoverableError(message);
         }
         throw error;
