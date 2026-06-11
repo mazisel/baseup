@@ -6,6 +6,7 @@ import { getCopy } from "@/lib/i18n";
 import { PaytrCheckout } from "@/components/settings/paytr-checkout";
 import { createClient } from "@supabase/supabase-js";
 import { formatMoney } from "@/lib/money";
+import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,9 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
   const { locale } = await getPreferences();
   const copy = getCopy(locale).billing;
+
+  const headersList = await headers();
+  const isTurkey = headersList.get("x-vercel-ip-country") === "TR" || headersList.get("accept-language")?.includes("tr") || false;
 
   const { packageId: targetPackageId, status } = await searchParams;
 
@@ -93,14 +97,19 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
       </section>
 
       <div className="module-grid">
-        {(packages || []).map(pkg => (
+        {(packages || []).map(pkg => {
+          const showTry = isTurkey && pkg.price_kurus_try > 0;
+          const displayPrice = showTry ? pkg.price_kurus_try : pkg.price_kurus;
+          const displayCurrency = showTry ? "TRY" : (pkg.currency || "USD");
+          
+          return (
           <section key={pkg.id} className="module-card" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             <div style={{ flex: 1 }}>
               <h3>{pkg.name}</h3>
               <p className="muted" style={{ minHeight: 40 }}>{pkg.description || copy.defaultPackageDescription}</p>
 
               <div style={{ fontSize: 24, fontWeight: "bold", margin: "16px 0" }}>
-                {formatMoney(pkg.price_kurus, pkg.currency || "USD")}
+                {formatMoney(displayPrice, displayCurrency)}
                 <span className="muted" style={{ fontSize: 14, fontWeight: "normal" }}> /{pkg.billing_period === "yearly" ? copy.perYear : copy.perMonth}</span>
               </div>
 
@@ -127,7 +136,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               </Link>
             )}
           </section>
-        ))}
+        )})}
       </div>
     </div>
   );

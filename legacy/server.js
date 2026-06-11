@@ -4847,13 +4847,13 @@ app.post('/api/ai-seed', async (req, res) => {
          throw new Error("Sunucuda FAL_KEY ortam değişkeni ayarlanmamış.");
       }
       
-      const systemPrompt = \`Sen bir PostgreSQL veri üreticisisin. Sadece ve sadece geçerli SQL INSERT cümleleri üret. Açıklama yapma. \nHedef Tablo: \${targetTable}\nSatır Sayısı: \${rowCount}\nİstenen Veri: \${prompt}\`;
+      const systemPrompt = `Sen bir PostgreSQL veri üreticisisin. Sadece ve sadece geçerli SQL INSERT cümleleri üret. Açıklama yapma. \nHedef Tablo: ${targetTable}\nSatır Sayısı: ${rowCount}\nİstenen Veri: ${prompt}`;
       
       const aiResponse = await fetch('https://fal.run/openrouter/router/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': \`Key \${apiKey}\`
+          'Authorization': `Key ${apiKey}`
         },
         body: JSON.stringify({
           model: 'openai/gpt-4o',

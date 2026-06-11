@@ -80,7 +80,8 @@ export function startWorker() {
         await log("error", `Migration failed: ${message}`);
         await supabase.from("job_runs").update({ status: "error", error_message: message, finished_at: new Date().toISOString() }).eq("id", jobId);
 
-        if (userEmail) {
+        const isLastAttempt = job.attemptsMade >= (job.opts.attempts || 1) - 1;
+        if (userEmail && isLastAttempt) {
           await sendJobCompletionEmail(userEmail, jobTitle, "error", message);
         }
         throw error;

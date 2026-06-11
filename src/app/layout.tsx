@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   }
 };
 
+import NextTopLoader from "nextjs-toploader";
+
 export default async function RootLayout({
   children
 }: Readonly<{
@@ -20,7 +22,10 @@ export default async function RootLayout({
 
   return (
     <html data-theme={theme} lang={locale}>
-      <body>{children}</body>
+      <body>
+        <NextTopLoader color="var(--green)" showSpinner={false} />
+        {children}
+      </body>
     </html>
   );
 }

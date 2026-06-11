@@ -67,7 +67,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Package not found or inactive" }, { status: 404 });
     }
 
+    const isTurkey = request.headers.get("x-vercel-ip-country") === "TR" || request.headers.get("accept-language")?.includes("tr") || false;
     let payment_amount = pkg.price_kurus; // Kuruş cinsinden
+    let payment_currency = pkg.currency || "USD";
+
+    if (isTurkey && pkg.price_kurus_try > 0) {
+      payment_amount = pkg.price_kurus_try;
+      payment_currency = "TL";
+    }
+
+    if (payment_currency === "TRY") payment_currency = "TL";
+
     let appliedCouponCode: string | null = null;
 
     // Kupon doğrulama ve indirim uygulama
@@ -127,7 +137,7 @@ export async function POST(request: Request) {
     const user_phone = "05555555555";
     const email = user.email;
     const user_ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
-    const currency = "TL";
+    const currency = payment_currency;
     const test_mode = process.env.NODE_ENV === "production" ? "0" : "1";
     const no_installment = "1"; // Taksit yapılmasın
     const max_installment = "0";

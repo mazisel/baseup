@@ -73,7 +73,7 @@ export default async function DashboardPage() {
                 </div>
                 <div className="meta-row">
                   <span className="tag">{module.badge}</span>
-                  <span className="tag">{module.usageUnits} kredi</span>
+                  <span className="tag">{module.usageUnits}</span>
                 </div>
               </article>
             );
