@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+legacy
+.env*
+.claude
+tsconfig.tsbuildinfo
+*.md
+.DS_Store

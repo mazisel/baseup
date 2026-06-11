@@ -4,12 +4,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_* build sırasında bundle'a gömülür (bkz. Dockerfile)
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+        - NEXT_PUBLIC_FROM_EMAIL=${NEXT_PUBLIC_FROM_EMAIL:-SupaOps <noreply@supaops.com>}
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - REDIS_URL=redis://redis:6379
-      # You need to provide your Supabase connection strings via Portainer UI or a .env file
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
@@ -19,16 +25,26 @@ services:
       - PAYTR_MERCHANT_ID=${PAYTR_MERCHANT_ID}
       - PAYTR_MERCHANT_KEY=${PAYTR_MERCHANT_KEY}
       - PAYTR_MERCHANT_SALT=${PAYTR_MERCHANT_SALT}
-      - LEGACY_WEBAPP_URL=${LEGACY_WEBAPP_URL}
+      - SAAS_RUNNER_MODE=${SAAS_RUNNER_MODE:-legacy}
+      - LEGACY_WEBAPP_URL=${LEGACY_WEBAPP_URL:-http://legacy:4567}
       - ADMIN_EMAILS=${ADMIN_EMAILS}
     depends_on:
       - redis
+      - legacy
+    restart: unless-stopped
+
+  legacy:
+    build:
+      context: ./legacy
+      dockerfile: Dockerfile
+    # GÜVENLİK: Bu API auth içermez ve müşteri sunucularında root SSH
+    # komutları çalıştırır. Port bilinçli olarak publish EDİLMİYOR —
+    # yalnızca compose iç ağından (http://legacy:4567) erişilir.
     restart: unless-stopped
 
   redis:
     image: redis:alpine
-    ports:
-      - "6379:6379"
+    # Port bilinçli olarak publish edilmiyor — yalnızca iç ağdan erişilir.
     volumes:
       - redis_data:/data
     restart: unless-stopped

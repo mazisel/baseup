@@ -1,0 +1,3938 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Supabase Migration Sihirbazı</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --surface: #111827;
+      --surface2: #1a2035;
+      --border: #1f2d47;
+      --accent: #3ecf8e;
+      --accent2: #6366f1;
+      --accent3: #f59e0b;
+      --danger: #ef4444;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --success: #22c55e;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 10% 20%, rgba(62, 207, 142, .07) 0%, transparent 50%),
+        radial-gradient(ellipse at 90% 80%, rgba(99, 102, 241, .07) 0%, transparent 50%);
+    }
+
+    /* ─── HEADER ─── */
+    header {
+      background: rgba(17, 24, 39, .8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    header h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    header span.badge {
+      background: rgba(62, 207, 142, .15);
+      color: var(--accent);
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: .7rem;
+      border: 1px solid rgba(62, 207, 142, .2);
+    }
+
+    /* ─── STEPPER ─── */
+    .stepper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      padding: 2rem 2rem 0;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .step-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .4rem;
+      flex: 1;
+      position: relative;
+    }
+
+    .step-item:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 18px;
+      left: calc(50% + 18px);
+      right: calc(-50% + 18px);
+      height: 2px;
+      background: var(--border);
+      transition: background .3s;
+    }
+
+    .step-item.done:not(:last-child)::after {
+      background: var(--accent);
+    }
+
+    .step-num {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .8rem;
+      font-weight: 600;
+      transition: all .3s;
+      background: var(--surface);
+      z-index: 1;
+    }
+
+    .step-item.active .step-num {
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(62, 207, 142, .15);
+    }
+
+    .step-item.done .step-num {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--bg);
+    }
+
+    .step-label {
+      font-size: .7rem;
+      color: var(--muted);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .step-item.active .step-label {
+      color: var(--accent);
+    }
+
+    /* ─── MAIN ─── */
+    main {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 2rem 4rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+    }
+
+    .card-title .icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+    }
+
+    /* ─── FORM ─── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .form-grid.cols-1 {
+      grid-template-columns: 1fr;
+    }
+
+    .form-grid.cols-3 {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+    }
+
+    .field.full-width {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: .75rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    label .req {
+      color: var(--danger);
+      margin-left: 2px;
+    }
+
+    label .gen-badge {
+      background: rgba(62, 207, 142, .15);
+      color: var(--accent);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: .65rem;
+      margin-left: 6px;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    input,
+    select,
+    textarea {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: .875rem;
+      padding: .6rem .9rem;
+      transition: border-color .2s;
+      outline: none;
+      width: 100%;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(62, 207, 142, .1);
+    }
+
+    input.mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .78rem;
+    }
+
+    input[type="password"] {
+      letter-spacing: .1em;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .input-with-btn {
+      display: flex;
+      gap: .5rem;
+    }
+
+    .input-with-btn input {
+      flex: 1;
+    }
+
+    /* ─── BUTTONS ─── */
+    .btn {
+      padding: .65rem 1.4rem;
+      border-radius: 8px;
+      font-size: .875rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all .2s;
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #2ca870);
+      color: var(--bg);
+    }
+
+    .btn-primary:hover {
+      opacity: .9;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(62, 207, 142, .3);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    .btn-sm {
+      padding: .4rem .9rem;
+      font-size: .8rem;
+    }
+
+    .btn-icon {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: .6rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+
+    .btn-icon:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .btn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    /* ─── ALERTS & BADGES ─── */
+    .alert {
+      padding: .8rem 1rem;
+      border-radius: 8px;
+      font-size: .85rem;
+      display: flex;
+      align-items: flex-start;
+      gap: .6rem;
+      margin-bottom: 1rem;
+    }
+
+    .alert-info {
+      background: rgba(99, 102, 241, .12);
+      border: 1px solid rgba(99, 102, 241, .25);
+      color: #a5b4fc;
+    }
+
+    .alert-success {
+      background: rgba(34, 197, 94, .12);
+      border: 1px solid rgba(34, 197, 94, .25);
+      color: #86efac;
+    }
+
+    .alert-warn {
+      background: rgba(245, 158, 11, .12);
+      border: 1px solid rgba(245, 158, 11, .25);
+      color: #fcd34d;
+    }
+
+    .alert-danger {
+      background: rgba(239, 68, 68, .12);
+      border: 1px solid rgba(239, 68, 68, .25);
+      color: #fca5a5;
+    }
+
+    /* ─── ENV SECTIONS ─── */
+    .env-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .env-section-title {
+      font-size: .75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      padding: .5rem 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+
+    .env-section-title::before {
+      content: '';
+      width: 3px;
+      height: 12px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    /* ─── LOG ─── */
+    #log-container, #clean-log-container {
+      background: #050810;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      height: 400px;
+      overflow-y: auto;
+      padding: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .8rem;
+      line-height: 1.7;
+    }
+
+    .log-line {
+      display: block;
+      padding: .1rem 0;
+    }
+
+    .log-line.step {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .log-line.success {
+      color: var(--success);
+    }
+
+    .log-line.warn {
+      color: var(--accent3);
+    }
+
+    .log-line.error {
+      color: var(--danger);
+    }
+
+    .log-line.log {
+      color: #94a3b8;
+    }
+
+    /* ─── PROGRESS ─── */
+    .progress-bar-wrap {
+      background: var(--surface2);
+      border-radius: 999px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 999px;
+      transition: width .5s ease;
+      width: 0%;
+    }
+
+    /* ─── SUMMARY ─── */
+    .cred-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .cred-table td {
+      padding: .6rem .8rem;
+      border-bottom: 1px solid var(--border);
+      font-size: .85rem;
+    }
+
+    .cred-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .cred-table td:first-child {
+      color: var(--muted);
+      width: 220px;
+      font-size: .78rem;
+    }
+
+    .cred-table td:last-child {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .78rem;
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      cursor: pointer;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: .85rem;
+      padding: .2rem;
+    }
+
+    .copy-btn:hover {
+      color: var(--accent);
+    }
+
+    /* ─── SWITCH ─── */
+    .switch-wrap {
+      display: flex;
+      align-items: center;
+      gap: .8rem;
+    }
+
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .switch .slider {
+      position: absolute;
+      inset: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: .3s;
+    }
+
+    .switch .slider::before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 2px;
+      top: 2px;
+      background: var(--muted);
+      border-radius: 50%;
+      transition: .3s;
+    }
+
+    .switch input:checked+.slider {
+      background: rgba(62, 207, 142, .2);
+      border-color: var(--accent);
+    }
+
+    .switch input:checked+.slider::before {
+      transform: translateX(20px);
+      background: var(--accent);
+    }
+
+    /* ─── TOGGLE ROW ─── */
+    .toggle-row {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      gap: .9rem;
+      padding: .95rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(26, 32, 53, .28);
+      cursor: pointer;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--text);
+    }
+
+    .toggle-row>input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+    }
+
+    .toggle-row .slider {
+      position: relative;
+      flex: 0 0 44px;
+      width: 44px;
+      height: 24px;
+      margin-top: 1px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      transition: .3s;
+    }
+
+    .toggle-row .slider::before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 2px;
+      top: 2px;
+      background: var(--muted);
+      border-radius: 50%;
+      transition: .3s;
+    }
+
+    .toggle-row input:checked+.slider {
+      background: rgba(62, 207, 142, .2);
+      border-color: var(--accent);
+    }
+
+    .toggle-row input:checked+.slider::before {
+      transform: translateX(20px);
+      background: var(--accent);
+    }
+
+    .toggle-row .text {
+      flex: 1;
+      min-width: 0;
+      color: var(--text);
+    }
+
+    .toggle-row .text strong {
+      display: block;
+      font-size: .88rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .toggle-row .subtext {
+      margin-top: .25rem;
+      font-size: .78rem;
+      line-height: 1.4;
+      color: var(--muted);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .compare-rls-panel {
+      margin-top: .8rem;
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(5, 8, 16, .35);
+    }
+
+    .compare-rls-panel .form-grid {
+      gap: .9rem;
+    }
+
+    /* ─── NAV BUTTONS ─── */
+    .nav-btns {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 2rem;
+    }
+
+    /* ─── SPINNER ─── */
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, .3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    section.step-panel {
+      display: none;
+    }
+
+    section.step-panel.active {
+      display: block;
+    }
+
+    /* ─── Tag ─── */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: .3rem;
+      padding: .2rem .6rem;
+      border-radius: 6px;
+      font-size: .72rem;
+      font-weight: 600;
+    }
+
+    .tag-green {
+      background: rgba(34, 197, 94, .15);
+      color: var(--success);
+    }
+
+    .tag-yellow {
+      background: rgba(245, 158, 11, .15);
+      color: var(--accent3);
+    }
+
+    .mode-switch {
+      max-width: 900px;
+      margin: 1.25rem auto 0;
+      padding: 0 2rem;
+      display: flex;
+      gap: .8rem;
+    }
+
+    .mode-btn {
+      flex: 1;
+      background: rgba(17, 24, 39, .78);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 12px;
+      padding: .85rem 1rem;
+      font-size: .88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+    }
+
+    .mode-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .mode-btn.active {
+      color: var(--text);
+      border-color: rgba(62, 207, 142, .45);
+      background: linear-gradient(135deg, rgba(62, 207, 142, .14), rgba(99, 102, 241, .14));
+      box-shadow: 0 0 0 3px rgba(62, 207, 142, .08);
+    }
+
+    .field-help {
+      font-size: .75rem;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-top: .25rem;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .9rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .stat-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+
+    .stat-card .value {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .stat-card .label {
+      margin-top: .3rem;
+      font-size: .74rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      line-height: 1.45;
+    }
+
+    .compare-diff-list {
+      display: flex;
+      flex-direction: column;
+      gap: .85rem;
+    }
+
+    .diff-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+
+    .diff-item-title {
+      font-size: .92rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .diff-item-meta {
+      margin-top: .45rem;
+      font-size: .8rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .diff-item-warning {
+      margin-top: .7rem;
+      font-size: .78rem;
+      color: #fcd34d;
+      line-height: 1.55;
+    }
+
+    .diff-detail-list {
+      margin-top: .8rem;
+      display: flex;
+      flex-direction: column;
+      gap: .55rem;
+    }
+
+    .diff-detail-row {
+      background: rgba(5, 8, 16, .55);
+      border: 1px solid rgba(99, 102, 241, .18);
+      border-radius: 10px;
+      padding: .7rem .8rem;
+    }
+
+    .diff-detail-field {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 78px;
+      padding: .15rem .5rem;
+      border-radius: 999px;
+      background: rgba(99, 102, 241, .14);
+      color: #c7d2fe;
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .diff-detail-values {
+      margin-top: .45rem;
+      display: grid;
+      gap: .35rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .74rem;
+      line-height: 1.55;
+      color: #cbd5e1;
+    }
+
+    .definition-grid {
+      margin-top: .8rem;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .8rem;
+    }
+
+    .definition-box {
+      background: rgba(5, 8, 16, .85);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .8rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .76rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+
+    .definition-box strong {
+      display: block;
+      margin-bottom: .4rem;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: .78rem;
+    }
+
+    .code-block {
+      background: #050810;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .78rem;
+      line-height: 1.7;
+      color: #94a3b8;
+      overflow: auto;
+      white-space: pre-wrap;
+      margin-top: .8rem;
+    }
+
+    @media (max-width: 760px) {
+      .mode-switch {
+        flex-direction: column;
+      }
+
+      .stats-grid,
+      .definition-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="logo">🗄️</div>
+    <h1>Supabase Migration Sihirbazı</h1>
+    <span class="badge">Self-Hosted</span>
+  </header>
+
+  <div class="mode-switch">
+    <button class="mode-btn active" id="mode-btn-migration" onclick="setMode('migration')">Migration</button>
+    <button class="mode-btn" id="mode-btn-clean" onclick="setMode('clean')">Sıfırdan Kurulum</button>
+    <button class="mode-btn" id="mode-btn-cloud" onclick="setMode('cloud')">Cloud'dan Self-Host'a</button>
+    <button class="mode-btn" id="mode-btn-verify" onclick="setMode('verify')">Veri Doğrulama</button>
+    <button class="mode-btn" id="mode-btn-settings" onclick="setMode('settings')">Ayar Güncelleme</button>
+    <button class="mode-btn" id="mode-btn-compare" onclick="setMode('compare')">Schema Fark Analizi</button>
+    <button class="mode-btn" id="mode-btn-export" onclick="setMode('export')">Verisiz SQL Dışa Aktar</button>
+  </div>
+
+  <div id="migration-mode">
+
+  <!-- Stepper -->
+  <div class="stepper" id="stepper">
+    <div class="step-item active" data-step="1">
+      <div class="step-num">1</div>
+      <div class="step-label">Kaynak Sunucu</div>
+    </div>
+    <div class="step-item" data-step="2">
+      <div class="step-num">2</div>
+      <div class="step-label">Ortam Değişkenleri</div>
+    </div>
+    <div class="step-item" data-step="3">
+      <div class="step-num">3</div>
+      <div class="step-label">Hedef & Domain</div>
+    </div>
+    <div class="step-item" data-step="4">
+      <div class="step-num">4</div>
+      <div class="step-label">Migration</div>
+    </div>
+  </div>
+
+  <main>
+
+    <!-- ═══ ADIM 1: Kaynak Sunucu ═══ -->
+    <section class="step-panel active" id="step1">
+      <div class="card">
+        <div class="card-title">
+          <div class="icon" style="background:rgba(62,207,142,.15)">🔌</div>
+          Kaynak Sunucu Bağlantısı
+        </div>
+        <div class="alert alert-info">
+          ℹ️ Mevcut Supabase sunucusuna bağlanarak tüm ortam değişkenleri otomatik yüklenecek.
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Sunucu IP Adresi <span class="req">*</span></label>
+            <input id="src-host" type="text" placeholder="192.168.1.1" />
+          </div>
+          <div class="field">
+            <label>Root Şifresi <span class="req">*</span></label>
+            <div class="input-with-btn">
+              <input id="src-pass" type="password" placeholder="" />
+              <button class="btn-icon" onclick="togglePass('src-pass')">👁</button>
+            </div>
+          </div>
+        </div>
+        <label class="toggle-row" style="margin-top:1rem">
+          <input type="checkbox" id="continue-on-minor-errors" />
+          <span class="slider"></span>
+          <div class="text">
+            <strong>Önemsiz SSH Hatalarında Devam Et</strong>
+            <div class="subtext">Geçici bağlantı kopmalarında önce yeniden denenir; sorun opsiyonel bir adımda kalırsa uyarı verilip migration devam eder.</div>
+          </div>
+        </label>
+        <!-- Kontrol Sonucu Paneli -->
+        <div id="check-panel" style="display:none;margin-top:1.2rem">
+          <div
+            style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem">
+            🔍 Sunucu Kontrolleri</div>
+          <div id="check-list" style="display:flex;flex-direction:column;gap:.45rem"></div>
+          <div id="check-error" style="display:none;margin-top:1rem" class="alert alert-danger"></div>
+          <div id="check-ok-msg" style="display:none;margin-top:.8rem" class="alert alert-success">✅ Sunucu doğrulandı!
+            Env değişkenleri yükleniyor...</div>
+        </div>
+      </div>
+      <div class="nav-btns">
+        <div></div>
+        <div style="display:flex;gap:.8rem;align-items:center">
+          <button class="btn btn-secondary" id="btn-force-continue" style="display:none" onclick="forceConnectSource()">
+            ⚠️ Yine de Devam Et
+          </button>
+          <button class="btn btn-primary" id="btn-connect" onclick="connectSource()">
+            🔗 Bağlan ve Env'leri Yükle
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ ADIM 2: Env Değişkenleri ═══ -->
+    <section class="step-panel" id="step2">
+      <div class="card">
+        <div class="card-title">
+          <div class="icon" style="background:rgba(99,102,241,.15)">🔑</div>
+          Ortam Değişkenleri
+          <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="generateAllSecrets()">
+            ✨ Tüm Secret'ları Yenile
+          </button>
+        </div>
+        <div class="alert alert-warn">
+          ⚡ <strong>Otomatik oluşturulan alanlar</strong> zaten benzersiz değerlerle dolduruldu. İstediğiniz alanı
+          düzenleyebilirsiniz.
+        </div>
+
+        <!-- SECRETS -->
+        <div class="env-section">
+          <div class="env-section-title">🔒 Güvenlik Anahtarları</div>
+          <div class="form-grid">
+            <div class="field">
+              <label>POSTGRES_PASSWORD <span class="gen-badge">🎲 otomatik</span></label>
+              <div class="input-with-btn">
+                <input class="mono" id="env-POSTGRES_PASSWORD" type="text" />
+                <button class="btn-icon btn-sm" onclick="genField('POSTGRES_PASSWORD','hex',20)">🔄</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>JWT_SECRET <span class="gen-badge">🎲 otomatik</span></label>
+              <div class="input-with-btn">
+                <input class="mono" id="env-JWT_SECRET" type="text" />
+                <button class="btn-icon btn-sm" onclick="genJWT()">🔄</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>DASHBOARD_USERNAME</label>
+              <input id="env-DASHBOARD_USERNAME" type="text" />
+            </div>
+            <div class="field">
+              <label>DASHBOARD_PASSWORD <span class="gen-badge">🎲 otomatik</span></label>
+              <div class="input-with-btn">
+                <input id="env-DASHBOARD_PASSWORD" type="text" />
+                <button class="btn-icon btn-sm" onclick="genField('DASHBOARD_PASSWORD','base64',12)">🔄</button>
+              </div>
+            </div>
+            <div class="field full-width">
+              <label>ANON_KEY <span class="gen-badge">🎲 JWT ile üretilir</span></label>
+              <input class="mono" id="env-ANON_KEY" type="text" readonly style="opacity:.7" />
+            </div>
+            <div class="field full-width">
+              <label>SERVICE_ROLE_KEY <span class="gen-badge">🎲 JWT ile üretilir</span></label>
+              <input class="mono" id="env-SERVICE_ROLE_KEY" type="text" readonly style="opacity:.7" />
+            </div>
+            <div class="field">
+              <label>SECRET_KEY_BASE <span class="gen-badge">🎲 otomatik</span></label>
+              <input class="mono" id="env-SECRET_KEY_BASE" type="text" />
+            </div>
+            <div class="field">
+              <label>VAULT_ENC_KEY <span class="gen-badge">🎲 otomatik (32 char)</span></label>
+              <input class="mono" id="env-VAULT_ENC_KEY" type="text" />
+            </div>
+            <div class="field">
+              <label>PG_META_CRYPTO_KEY <span class="gen-badge">🎲 otomatik (32 char)</span></label>
+              <input class="mono" id="env-PG_META_CRYPTO_KEY" type="text" />
+            </div>
+          </div>
+        </div>
+
+        <!-- DATABASE -->
+        <div class="env-section">
+          <div class="env-section-title">🗄️ Veritabanı</div>
+          <div class="form-grid cols-3">
+            <div class="field">
+              <label>POSTGRES_HOST</label>
+              <input id="env-POSTGRES_HOST" value="db" />
+            </div>
+            <div class="field">
+              <label>POSTGRES_DB</label>
+              <input id="env-POSTGRES_DB" value="postgres" />
+            </div>
+            <div class="field">
+              <label>POSTGRES_PORT</label>
+              <input id="env-POSTGRES_PORT" value="5432" />
+            </div>
+          </div>
+        </div>
+
+        <!-- POOLER -->
+        <div class="env-section">
+          <div class="env-section-title">⚡ Supavisor (Connection Pooler)</div>
+          <div class="form-grid cols-3">
+            <div class="field">
+              <label>POOLER_PROXY_PORT_TRANSACTION</label>
+              <input id="env-POOLER_PROXY_PORT_TRANSACTION" value="6543" />
+            </div>
+            <div class="field">
+              <label>POOLER_DEFAULT_POOL_SIZE</label>
+              <input id="env-POOLER_DEFAULT_POOL_SIZE" value="20" />
+            </div>
+            <div class="field">
+              <label>POOLER_MAX_CLIENT_CONN</label>
+              <input id="env-POOLER_MAX_CLIENT_CONN" value="100" />
+            </div>
+            <div class="field">
+              <label>POOLER_TENANT_ID</label>
+              <input id="env-POOLER_TENANT_ID" value="default-tenant" />
+            </div>
+            <div class="field">
+              <label>POOLER_DB_POOL_SIZE</label>
+              <input id="env-POOLER_DB_POOL_SIZE" value="5" />
+            </div>
+          </div>
+        </div>
+
+        <!-- KONG -->
+        <div class="env-section">
+          <div class="env-section-title">🌐 API Proxy (Kong)</div>
+          <div class="form-grid">
+            <div class="field">
+              <label>KONG_HTTP_PORT</label>
+              <input id="env-KONG_HTTP_PORT" value="8000" />
+            </div>
+            <div class="field">
+              <label>KONG_HTTPS_PORT</label>
+              <input id="env-KONG_HTTPS_PORT" value="8443" />
+            </div>
+            <div class="field full-width">
+              <label>PGRST_DB_SCHEMAS</label>
+              <input id="env-PGRST_DB_SCHEMAS" value="public,storage,graphql_public" />
+            </div>
+          </div>
+        </div>
+
+        <!-- AUTH -->
+        <div class="env-section">
+          <div class="env-section-title">🔐 Auth (GoTrue)</div>
+          <div class="form-grid">
+            <div class="field">
+              <label>JWT_EXPIRY (sn)</label>
+              <input id="env-JWT_EXPIRY" value="3600" />
+            </div>
+            <div class="field">
+              <label>DISABLE_SIGNUP</label>
+              <select id="env-DISABLE_SIGNUP">
+                <option value="false">false (kayıt açık)</option>
+                <option value="true">true (kayıt kapalı)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>ENABLE_EMAIL_SIGNUP</label>
+              <select id="env-ENABLE_EMAIL_SIGNUP">
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>ENABLE_EMAIL_AUTOCONFIRM</label>
+              <select id="env-ENABLE_EMAIL_AUTOCONFIRM">
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>ENABLE_ANONYMOUS_USERS</label>
+              <select id="env-ENABLE_ANONYMOUS_USERS">
+                <option value="false">false</option>
+                <option value="true">true</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>ADDITIONAL_REDIRECT_URLS</label>
+              <input id="env-ADDITIONAL_REDIRECT_URLS" placeholder="https://app.example.com/callback" />
+            </div>
+          </div>
+        </div>
+
+        <!-- SMTP -->
+        <div class="env-section">
+          <div class="env-section-title">📧 SMTP / E-posta</div>
+          <div class="form-grid">
+            <div class="field">
+              <label>SMTP_HOST</label>
+              <input id="env-SMTP_HOST" placeholder="smtp.example.com" />
+            </div>
+            <div class="field">
+              <label>SMTP_PORT</label>
+              <input id="env-SMTP_PORT" value="587" />
+            </div>
+            <div class="field">
+              <label>SMTP_USER</label>
+              <input id="env-SMTP_USER" placeholder="user@example.com" />
+            </div>
+            <div class="field">
+              <label>SMTP_PASS</label>
+              <div class="input-with-btn">
+                <input id="env-SMTP_PASS" type="password" placeholder="" />
+                <button class="btn-icon" onclick="togglePass('env-SMTP_PASS')">👁</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>SMTP_ADMIN_EMAIL</label>
+              <input id="env-SMTP_ADMIN_EMAIL" placeholder="admin@example.com" />
+            </div>
+            <div class="field">
+              <label>SMTP_SENDER_NAME</label>
+              <input id="env-SMTP_SENDER_NAME" value="Supabase" />
+            </div>
+          </div>
+        </div>
+
+        <!-- STUDIO -->
+        <div class="env-section">
+          <div class="env-section-title">🖥️ Studio & Diğer</div>
+          <div class="form-grid">
+            <div class="field">
+              <label>STUDIO_DEFAULT_ORGANIZATION</label>
+              <input id="env-STUDIO_DEFAULT_ORGANIZATION" value="Default Organization" />
+            </div>
+            <div class="field">
+              <label>STUDIO_DEFAULT_PROJECT</label>
+              <input id="env-STUDIO_DEFAULT_PROJECT" value="Default Project" />
+            </div>
+            <div class="field">
+              <label>OPENAI_API_KEY</label>
+              <input id="env-OPENAI_API_KEY" placeholder="sk-..." />
+            </div>
+            <div class="field">
+              <label>FUNCTIONS_VERIFY_JWT</label>
+              <select id="env-FUNCTIONS_VERIFY_JWT">
+                <option value="false">false</option>
+                <option value="true">true</option>
+              </select>
+            </div>
+            <div class="field full-width">
+              <label>LOGFLARE_PUBLIC_ACCESS_TOKEN <span class="gen-badge">🎲 otomatik</span></label>
+              <input class="mono" id="env-LOGFLARE_PUBLIC_ACCESS_TOKEN" type="text" />
+            </div>
+            <div class="field full-width">
+              <label>LOGFLARE_PRIVATE_ACCESS_TOKEN <span class="gen-badge">🎲 otomatik</span></label>
+              <input class="mono" id="env-LOGFLARE_PRIVATE_ACCESS_TOKEN" type="text" />
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(1)">← Geri</button>
+        <button class="btn btn-primary" onclick="goStep(3)">İleri: Hedef Sunucu →</button>
+      </div>
+    </section>
+
+    <!-- ═══ ADIM 3: Hedef & Domain ═══ -->
+    <section class="step-panel" id="step3">
+      <div class="card">
+        <div class="card-title">
+          <div class="icon" style="background:rgba(245,158,11,.15)">🎯</div>
+          Hedef Sunucu & Domain Ayarları
+        </div>
+        <div class="alert alert-warn">
+          ⚠️ Hedef sunucuda sadece temiz bir Ubuntu kurulu olmalı. Script geri kalanı otomatik kuracak.
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Hedef Sunucu IP <span class="req">*</span></label>
+            <input id="tgt-host" type="text" placeholder="1.2.3.4" />
+          </div>
+          <div class="field">
+            <label>Supabase Instans (Kurulum Yeri) <span class="req">*</span></label>
+            <select id="tgt-instance">
+              <option value="1">Instans 1 (Varsayılan - Port: 8000)</option>
+              <option value="2">Instans 2 (Port: 8001)</option>
+              <option value="3">Instans 3 (Port: 8002)</option>
+              <option value="4">Instans 4 (Port: 8003)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Root Şifresi <span class="req">*</span></label>
+            <div class="input-with-btn">
+              <input id="tgt-pass" type="password" placeholder="" />
+              <button class="btn-icon" onclick="togglePass('tgt-pass')">👁</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">
+          <div class="icon" style="background:rgba(62,207,142,.15)">🌐</div>
+          Domain Ayarları
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Studio Domain <span class="req">*</span></label>
+            <input id="studio-domain" type="text" placeholder="studio.domain.com" />
+          </div>
+          <div class="field">
+            <label>API Domain <span class="req">*</span></label>
+            <input id="api-domain" type="text" placeholder="api.domain.com" />
+          </div>
+          <div class="field full-width">
+            <label>Site URL (uygulamanın adresi)</label>
+            <input id="site-url" type="text" placeholder="https://app.domain.com" />
+          </div>
+          <div class="field full-width" style="margin-top:.35rem">
+            <label class="toggle-row">
+              <input type="checkbox" id="get-ssl" onchange="toggleSSLEmail(this.checked)" />
+              <span class="slider"></span>
+              <div class="text">
+                <strong>Let's Encrypt SSL Sertifikası Kur (Opsiyonel)</strong>
+                <div class="subtext">Studio ve API domainleri için Certbot ile HTTPS sertifikası alınır.
+                  DNS kayıtları hedef sunucuyu göstermelidir.</div>
+              </div>
+            </label>
+          </div>
+          <div class="field full-width" id="ssl-email-wrap" style="display:none">
+            <label>Let's Encrypt E-postası <span class="req">*</span></label>
+            <input id="certbot-email" type="email" placeholder="admin@domaininiz.com" />
+            <div style="font-size:.75rem;color:var(--muted);margin-top:.25rem">
+              Let's Encrypt yenileme ve uyarı bildirimleri bu adrese gönderilir.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">
+          <div class="icon" style="background:rgba(99,102,241,.15)">📐</div>
+          Veritabanı Aktarma Modu
+        </div>
+        <div class="form-grid cols-1" style="gap:.8rem">
+          <div class="switch-wrap">
+            <label class="switch">
+              <input type="checkbox" id="schema-only" checked />
+              <span class="slider"></span>
+            </label>
+            <div>
+              <div style="font-size:.9rem;font-weight:500">Sadece Şema (Tablo Yapısı)</div>
+              <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem">Veriler aktarılmaz &mdash; yalnızca
+                tablolar, view'lar, fonksiyonlar kopyalanır</div>
+            </div>
+            <span id="schema-badge" class="tag tag-green" style="margin-left:auto">📐 Şema Only</span>
+          </div>
+          <div id="schema-info" class="alert alert-warn" style="margin:0">
+            ⚡ Kaynak sunucudaki veriler <strong>aktarılmayacak</strong>. Hedef sunucu boş tablolarla başlayacak.
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">
+          <div class="icon">🚀</div> Migration İşlemini Başlatın
+        </div>
+        <div class="alert alert-info" style="margin-bottom:1.5rem">
+          Tüm ayarlar tamam. İşlemi başlattığınızda hedef sunucuya gerekli dosyalar yüklenecek ve isteğinize göre
+          veriler taşınacaktır.
+        </div>
+
+
+        <label class="toggle-row" style="margin-top:1rem" id="backup-toggle-row">
+          <input type="checkbox" id="setup-backup" checked />
+          <span class="slider"></span>
+          <div class="text">
+            <strong>Otomatik Yedeklemeyi (Google Drive) Aktar</strong>
+            <div class="subtext">Kaynak sunucudaki 'rclone' ayarları ve günlük yedekleme görevi hedefe kopyalanır.
+              Yedekler IP adresine göre klasörlenir.</div>
+          </div>
+        </label>
+
+        <button class="btn btn-primary" style="width:100%; justify-content:center; margin-top:2rem; padding:1rem"
+          onclick="startMigration()">
+          🚀 MIGRATION BAŞLAT
+        </button>
+      </div>
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(2)">← Geri</button>
+      </div>
+    </section>
+
+    <!-- ═══ ADIM 4: Migration ═══ -->
+    <section class="step-panel" id="step4">
+      <div class="card">
+        <div class="card-title">
+          <div class="icon" style="background:rgba(62,207,142,.15)">📡</div>
+          Migration Durumu
+          <span id="migration-status" class="tag tag-yellow" style="margin-left:auto">⏳ Çalışıyor</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div id="log-container"></div>
+      </div>
+
+      <!-- Özet (migration sonrası) -->
+      <div class="card" id="summary-card" style="display:none">
+        <div class="card-title">
+          <div class="icon" style="background:rgba(34,197,94,.15)">✅</div>
+          Migration Tamamlandı
+          <span class="tag tag-green" style="margin-left:auto">✅ Başarılı</span>
+        </div>
+        <div class="alert alert-success">
+          🎉 Supabase yeni sunucuya başarıyla taşındı! Uygulamalarınızdaki değerleri aşağıya göre güncelleyin.
+        </div>
+
+        <!-- BÖLÜM 1: Otomatik oluşturulan Supabase bağlantı değerleri -->
+        <div class="env-section" style="margin-top:1.5rem">
+          <div class="env-section-title">🔗 Uygulamayı bağlamak için bu değerleri kullanın</div>
+          <table class="cred-table" id="cred-table-auto"></table>
+        </div>
+
+        <!-- BÖLÜM 2: Hazır .env bloğu -->
+        <div class="env-section">
+          <div class="env-section-title" style="justify-content:space-between;display:flex;align-items:center">
+            <span>📤 Kopyalanabilir .env Bloğu</span>
+            <button class="btn btn-secondary btn-sm" onclick="copyEnvBlock()">📋 Tümünü Kopyala</button>
+          </div>
+          <pre id="env-block"
+            style="background:#050810;border:1px solid var(--border);border-radius:10px;padding:1rem;font-family:'JetBrains Mono',monospace;font-size:.75rem;line-height:1.8;overflow-x:auto;white-space:pre-wrap;color:#94a3b8;margin-top:.8rem"></pre>
+        </div>
+
+        <!-- BÖLÜM 3: Dışarıdan alınması gereken değerler -->
+        <div class="env-section">
+          <div class="env-section-title">⚠️ Kendiniz temin etmeniz gereken değerler</div>
+          <table class="cred-table" id="cred-table-external"></table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+  </div>
+
+  <div id="compare-mode" style="display:none">
+    <main>
+      <section>
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(99,102,241,.15)">🔍</div>
+            Schema Fark Analizi
+          </div>
+          <div class="alert alert-info">
+            ℹ️ Bu araç iki self-hosted Supabase sunucusunu <strong>sadece okur</strong>. Tabloları ve kolonları
+            karşılaştırır, ardından farkı kapatmak için gereken SQL'i üretir.
+          </div>
+          <div class="alert alert-warn">
+            ⚠️ Varsayılan kapsam <strong>public</strong> şemasıdır. Gürültüyü azaltmak için önce buradan başlamanız daha
+            güvenli.
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Sunucu 1 IP <span class="req">*</span></label>
+              <input id="cmp-host-1" type="text" placeholder="1.2.3.4" />
+            </div>
+            <div class="field">
+              <label>Sunucu 1 Root Şifresi <span class="req">*</span></label>
+              <div class="input-with-btn">
+                <input id="cmp-pass-1" type="password" />
+                <button class="btn-icon" onclick="togglePass('cmp-pass-1')">👁</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>Sunucu 2 IP <span class="req">*</span></label>
+              <input id="cmp-host-2" type="text" placeholder="5.6.7.8" />
+            </div>
+            <div class="field">
+              <label>Sunucu 2 Root Şifresi <span class="req">*</span></label>
+              <div class="input-with-btn">
+                <input id="cmp-pass-2" type="password" />
+                <button class="btn-icon" onclick="togglePass('cmp-pass-2')">👁</button>
+              </div>
+            </div>
+            <div class="field full-width">
+              <label>Karşılaştırılacak Schema'lar</label>
+              <input id="cmp-schemas" type="text" value="public" placeholder="public, storage, auth" />
+              <div class="field-help">
+                Virgülle birden fazla schema yazabilirsiniz. Boş bırakırsanız system dışı tüm schema'lar taranır.
+              </div>
+            </div>
+            <div class="field full-width" style="margin-top:.35rem">
+              <label class="toggle-row">
+                <input type="checkbox" id="cmp-include-rls" onchange="toggleCompareRlsOptions(this.checked)" />
+                <span class="slider"></span>
+                <div class="text">
+                  <strong>RLS Policy'lerini de Karşılaştır</strong>
+                  <div class="subtext">
+                    RLS açık/force durumlarını kontrol eder, eksik policy'ler için ekleme SQL'i üretir.
+                    Farklı tanımlı policy'ler yalnızca raporlanır.
+                  </div>
+                </div>
+              </label>
+              <div id="cmp-rls-options" class="compare-rls-panel" style="display:none">
+                <div class="form-grid">
+                  <div class="field">
+                    <label>RLS Sync Yönü</label>
+                    <select id="cmp-rls-sync-direction" onchange="updateCompareRlsMode()">
+                      <option value="bidirectional">Çift yönlü raporla</option>
+                      <option value="server1_to_server2">Sunucu 1 → Sunucu 2 hizala</option>
+                      <option value="server2_to_server1">Sunucu 2 → Sunucu 1 hizala</option>
+                    </select>
+                    <div class="field-help">
+                      Yön seçerseniz RLS ve policy SQL'i yalnızca hedef sunucu için üretilir.
+                    </div>
+                  </div>
+                  <div class="field full-width" style="margin-top:.1rem">
+                    <label class="toggle-row">
+                      <input type="checkbox" id="cmp-rls-recreate" disabled />
+                      <span class="slider"></span>
+                      <div class="text">
+                        <strong>Mismatch Policy'lerde DROP/CREATE Üret</strong>
+                        <div class="subtext" id="cmp-rls-recreate-help">
+                          Bu mod yalnızca yön seçildiğinde açılır. Hedefteki ekstra policy'leri kaldırabilir ve farklı tanımlı policy'leri yeniden oluşturabilir.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="nav-btns">
+          <div></div>
+          <button class="btn btn-primary" id="btn-compare" onclick="compareSchemas()">🔍 Karşılaştır ve SQL Üret</button>
+        </div>
+
+        <div class="card" id="compare-results" style="display:none">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(62,207,142,.15)">📊</div>
+            Karşılaştırma Sonucu
+            <span id="compare-status" class="tag tag-yellow" style="margin-left:auto">Hazır</span>
+          </div>
+          <div id="compare-scope" class="alert alert-info" style="margin-bottom:1.2rem"></div>
+          <div class="stats-grid" id="compare-stats"></div>
+          <div id="compare-empty" class="alert alert-success" style="display:none;margin-bottom:1rem">
+            ✅ Karşılaştırılan kapsamda fark bulunmadı.
+          </div>
+          <div id="compare-diff-list" class="compare-diff-list"></div>
+        </div>
+
+        <div class="card" id="compare-sql-card-1" style="display:none">
+          <div class="card-title" style="justify-content:space-between;display:flex;align-items:center">
+            <span style="display:flex;align-items:center;gap:.6rem">
+              <span class="icon" style="background:rgba(99,102,241,.15)">🖥️</span>
+              Sunucu 1'de Çalıştırılacak SQL
+            </span>
+            <button class="btn btn-secondary btn-sm" onclick="copyFromElement('compare-sql-1')">📋 Kopyala</button>
+          </div>
+          <div class="alert alert-info" style="margin-bottom:0">
+            ℹ️ Bu blok yalnızca <strong>Sunucu 1</strong>'de çalıştırılmalıdır.
+          </div>
+          <pre id="compare-sql-1" class="code-block"></pre>
+        </div>
+
+        <div class="card" id="compare-sql-card-2" style="display:none">
+          <div class="card-title" style="justify-content:space-between;display:flex;align-items:center">
+            <span style="display:flex;align-items:center;gap:.6rem">
+              <span class="icon" style="background:rgba(245,158,11,.15)">🖥️</span>
+              Sunucu 2'de Çalıştırılacak SQL
+            </span>
+            <button class="btn btn-secondary btn-sm" onclick="copyFromElement('compare-sql-2')">📋 Kopyala</button>
+          </div>
+          <div class="alert alert-info" style="margin-bottom:0">
+            ℹ️ Bu blok yalnızca <strong>Sunucu 2</strong>'de çalıştırılmalıdır.
+          </div>
+          <pre id="compare-sql-2" class="code-block"></pre>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="export-mode" style="display:none">
+    <main>
+      <section>
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(62,207,142,.15)">📤</div>
+            Verisiz SQL Dışa Aktar
+          </div>
+          <div class="alert alert-info">
+            ℹ️ Bu araç kaynak Supabase sunucusundan <strong>veri hariç</strong> tüm DB yapısını SQL olarak çıkarır.
+            Tablolar, view'lar, fonksiyonlar, policy'ler ve storage bucket tanımları dahil edilir.
+          </div>
+          <div class="alert alert-warn">
+            ⚠️ `storage.objects` dosya verisi dışa aktarılmaz. Sadece bucket metadata SQL'i eklenir.
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Kaynak Sunucu IP <span class="req">*</span></label>
+              <input id="exp-host" type="text" placeholder="1.2.3.4" />
+            </div>
+            <div class="field">
+              <label>Kaynak Root Şifresi <span class="req">*</span></label>
+              <div class="input-with-btn">
+                <input id="exp-pass" type="password" />
+                <button class="btn-icon" onclick="togglePass('exp-pass')">👁</button>
+              </div>
+            </div>
+            <div class="field full-width">
+              <label>Schema Filtre (opsiyonel)</label>
+              <input id="exp-schemas" type="text" placeholder="public, auth, storage" />
+              <div class="field-help">
+                Boş bırakırsanız pg_dump'un gördüğü tüm kullanıcı schema'ları dışa aktarılır.
+              </div>
+            </div>
+            <div class="field full-width" style="margin-top:.35rem">
+              <label class="toggle-row">
+                <input type="checkbox" id="exp-include-buckets" checked />
+                <span class="slider"></span>
+                <div class="text">
+                  <strong>Storage Bucket SQL'ini Dahil Et</strong>
+                  <div class="subtext">Bucket metadata satırları `ON CONFLICT DO NOTHING` ile üretilir.</div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="nav-btns">
+          <div></div>
+          <button class="btn btn-primary" id="btn-export-structure" onclick="exportStructureSql()">📤 SQL Üret</button>
+        </div>
+
+        <div class="card" id="export-results" style="display:none">
+          <div class="card-title" style="justify-content:space-between;display:flex;align-items:center">
+            <span style="display:flex;align-items:center;gap:.6rem">
+              <span class="icon" style="background:rgba(99,102,241,.15)">🧾</span>
+              Üretilen SQL
+            </span>
+            <div style="display:flex;gap:.6rem">
+              <button class="btn btn-secondary btn-sm" onclick="copyFromElement('export-sql-output')">📋 Kopyala</button>
+              <button class="btn btn-secondary btn-sm" onclick="downloadExportSql()">⬇️ İndir</button>
+            </div>
+          </div>
+          <div id="export-scope" class="alert alert-info" style="margin-bottom:.8rem"></div>
+          <div id="export-warning" class="alert alert-warn" style="display:none;margin-bottom:.8rem"></div>
+          <pre id="export-sql-output" class="code-block"></pre>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="clean-mode" style="display:none">
+    <div class="stepper" id="stepper-clean">
+      <div class="step-item active" data-step="1">
+        <div class="step-num">1</div>
+        <div class="step-label">Hedef Sunucu</div>
+      </div>
+      <div class="step-item" data-step="2">
+        <div class="step-num">2</div>
+        <div class="step-label">Ortam & Domain</div>
+      </div>
+      <div class="step-item" data-step="3">
+        <div class="step-num">3</div>
+        <div class="step-label">Kurulum</div>
+      </div>
+    </div>
+    <main>
+      <section class="step-panel active" id="clean-step1">
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(62,207,142,.15)">🎯</div>
+            Hedef Sunucu Bilgileri
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Sunucu IP Adresi <span class="req">*</span></label>
+              <input id="clean-target-host" type="text" placeholder="1.2.3.4" />
+            </div>
+            <div class="field">
+              <label>Supabase Instans <span class="req">*</span></label>
+              <select id="clean-target-instance">
+                <option value="1">Instans 1 (Varsayılan)</option>
+                <option value="2">Instans 2</option>
+                <option value="3">Instans 3</option>
+                <option value="4">Instans 4</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Root Şifresi <span class="req">*</span></label>
+              <div class="input-with-btn">
+                <input id="clean-target-pass" type="password" />
+                <button class="btn-icon" onclick="togglePass('clean-target-pass')">👁</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nav-btns">
+          <div></div>
+          <button class="btn btn-primary" onclick="cleanGoStep(2)">İleri ➔</button>
+        </div>
+      </section>
+
+      <section class="step-panel" id="clean-step2" style="display:none">
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(99,102,241,.15)">🌐</div>
+            Domain & Ayarlar
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Supabase Studio (Dashboard) Domain</label>
+              <input id="clean-studio-domain" type="text" placeholder="db.ornek.com" />
+            </div>
+            <div class="field">
+              <label>API Domain</label>
+              <input id="clean-api-domain" type="text" placeholder="api.ornek.com" />
+            </div>
+            <div class="field full-width">
+              <label class="toggle-row">
+                <input type="checkbox" id="clean-get-ssl" checked />
+                <span class="slider"></span>
+                <div class="text">
+                  <strong>Otomatik SSL Sertifikası Al (Certbot/Let's Encrypt)</strong>
+                  <div class="subtext">Bu işlem için domain A kayıtlarının hedef sunucu IP'sine yönlenmiş olması şarttır.</div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(245,158,11,.15)">🔑</div>
+            Supabase Şifreleri (Secret'lar)
+          </div>
+          <div class="alert alert-info" style="margin-bottom:1rem">
+            ℹ️ Sizin için güvenli şifreler otomatik üretildi. Dilerseniz değiştirebilirsiniz.
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>POSTGRES_PASSWORD</label>
+              <input class="mono" id="clean-env-POSTGRES_PASSWORD" type="text" />
+            </div>
+            <div class="field">
+              <label>JWT_SECRET</label>
+              <input class="mono" id="clean-env-JWT_SECRET" type="text" />
+            </div>
+            <div class="field">
+              <label>DASHBOARD_PASSWORD</label>
+              <input class="mono" id="clean-env-DASHBOARD_PASSWORD" type="text" />
+            </div>
+            <div class="field">
+              <label>SECRET_KEY_BASE</label>
+              <input class="mono" id="clean-env-SECRET_KEY_BASE" type="text" />
+            </div>
+            <input type="hidden" id="clean-env-ANON_KEY" />
+            <input type="hidden" id="clean-env-SERVICE_ROLE_KEY" />
+            <input type="hidden" id="clean-env-VAULT_ENC_KEY" />
+            <input type="hidden" id="clean-env-PG_META_CRYPTO_KEY" />
+          </div>
+          <div class="nav-btns" style="margin-top: 1rem">
+            <button class="btn btn-secondary btn-sm" onclick="genCleanSecrets()">🔄 Hepsini Yeniden Üret</button>
+          </div>
+        </div>
+
+        <div class="nav-btns">
+          <button class="btn btn-secondary" onclick="cleanGoStep(1)">🡠 Geri</button>
+          <button class="btn btn-primary" onclick="cleanGoStep(3)">Kurulumu Başlat 🚀</button>
+        </div>
+      </section>
+
+      <section class="step-panel" id="clean-step3" style="display:none">
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(34,197,94,.15)">🚀</div>
+            Kurulum Süreci
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" id="clean-progress-bar"></div>
+          </div>
+          <div id="clean-log-container" style="background: #050810;border: 1px solid var(--border);border-radius: 12px;height: 400px;overflow-y: auto;padding: 1rem;font-family: 'JetBrains Mono', monospace;font-size: .8rem;line-height: 1.7;"></div>
+          
+          <div id="clean-success-box" class="card" style="display:none; margin-top:1.5rem; background:rgba(34,197,94,.05); border-color:var(--success);">
+            <div class="card-title" style="color:var(--success)">✅ Kurulum Tamamlandı!</div>
+            <table class="cred-table">
+              <tr>
+                <td>Studio (Dashboard)</td>
+                <td id="clean-res-studio"></td>
+              </tr>
+              <tr>
+                <td>API URL</td>
+                <td id="clean-res-api"></td>
+              </tr>
+              <tr>
+                <td>Kullanıcı Adı</td>
+                <td>admin</td>
+              </tr>
+              <tr>
+                <td>Şifre</td>
+                <td id="clean-res-pass"></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="cloud-mode" style="display:none">
+    <div class="stepper" id="stepper-cloud">
+      <div class="step-item active" data-step="1">
+        <div class="step-num">1</div>
+        <div class="step-label">Cloud Bağlantısı</div>
+      </div>
+      <div class="step-item" data-step="2">
+        <div class="step-num">2</div>
+        <div class="step-label">Hedef Sunucu</div>
+      </div>
+      <div class="step-item" data-step="3">
+        <div class="step-num">3</div>
+        <div class="step-label">Ortam & Domain</div>
+      </div>
+      <div class="step-item" data-step="4">
+        <div class="step-num">4</div>
+        <div class="step-label">Taşıma</div>
+      </div>
+    </div>
+    <main>
+      <section class="step-panel active" id="cloud-step1">
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(99,102,241,.15)">☁️</div>
+            Supabase Cloud Veritabanı
+          </div>
+          <div class="alert alert-info">
+            Cloud'daki veritabanınızın bağlantı URL'sini (Connection String) IPv4 olarak giriniz. Hedef sunucunuz bu adrese erişerek verilerinizi çekecektir. (Örn: postgresql://postgres.[project-ref]:[şifre]@aws-0-[region].pooler.supabase.com:6543/postgres)
+          </div>
+          <div class="form-grid cols-1">
+            <div class="field">
+              <label>PostgreSQL Bağlantı URL <span class="req">*</span></label>
+              <input id="cloud-db-url" type="text" placeholder="postgresql://..." />
+            </div>
+          </div>
+        </div>
+        <div class="nav-btns">
+          <div></div>
+          <button class="btn btn-primary" onclick="cloudGoStep(2)">İleri ➔</button>
+        </div>
+      </section>
+
+      <section class="step-panel" id="cloud-step2" style="display:none">
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(62,207,142,.15)">🎯</div>
+            Hedef Sunucu Bilgileri (Yeni Self-Hosted)
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Hedef Sunucu IP <span class="req">*</span></label>
+              <input id="cloud-target-host" type="text" placeholder="1.2.3.4" />
+            </div>
+            <div class="field">
+              <label>Supabase Instans <span class="req">*</span></label>
+              <select id="cloud-target-instance">
+                <option value="1">Instans 1 (Varsayılan)</option>
+                <option value="2">Instans 2</option>
+                <option value="3">Instans 3</option>
+                <option value="4">Instans 4</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Root Şifresi <span class="req">*</span></label>
+              <div class="input-with-btn">
+                <input id="cloud-target-pass" type="password" />
+                <button class="btn-icon" onclick="togglePass('cloud-target-pass')">👁</button>
+              </div>
+            </div>
+            <div class="field full-width" style="margin-top:.5rem">
+              <label class="toggle-row">
+                <input type="checkbox" id="cloud-skip-install" />
+                <span class="slider"></span>
+                <div class="text">
+                  <strong>Sadece Verileri Taşı (Kurulumu Atla)</strong>
+                  <div class="subtext">Hedef sunucuda Supabase zaten kuruluysa bu seçeneği işaretleyin. Sunucuya paket yüklemesi yapılmaz, sadece veritabanı kopyalanır.</div>
+                </div>
+              </label>
+            </div>
+            <div class="field full-width" style="margin-top:.5rem">
+              <label class="toggle-row">
+                <input type="checkbox" id="cloud-migrate-storage" onchange="document.getElementById('cloud-storage-options').style.display=this.checked?'block':'none'" />
+                <span class="slider"></span>
+                <div class="text">
+                  <strong>Storage Dosyalarını Taşı (Fiziksel Kopyalama)</strong>
+                  <div class="subtext">Veritabanı dışındaki fiziksel S3/Storage objelerini yeni sunucuya indirip yükler.</div>
+                </div>
+              </label>
+            </div>
+            <div id="cloud-storage-options" style="display:none; background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 8px; margin-top: 1rem; border: 1px solid var(--border);">
+               <div class="form-grid" style="margin-bottom: 0;">
+                  <div class="field full-width">
+                    <label>Supabase Cloud API URL <span class="req">*</span></label>
+                    <input id="cloud-api-url" type="text" placeholder="https://xyz.supabase.co" />
+                  </div>
+                  <div class="field full-width" style="margin-top:0.5rem;">
+                    <label>Cloud Service Role Key <span class="req">*</span></label>
+                    <input id="cloud-service-key-input" type="password" placeholder="eyJh..." />
+                  </div>
+               </div>
+            </div>
+          </div>
+        </div>
+        <div class="nav-btns">
+          <button class="btn btn-secondary" onclick="cloudGoStep(1)">⬅ Geri</button>
+          <button class="btn btn-primary" onclick="cloudGoStep(3)">İleri ➔</button>
+        </div>
+      </section>
+
+      <section class="step-panel" id="cloud-step3" style="display:none">
+        <div class="card">
+          <div class="card-title" style="justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:.6rem">
+              <div class="icon" style="background:rgba(245,158,11,.15)">🔑</div>
+              Domain ve Secret'lar
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-cloud-gen-secrets" onclick="genCloudSecrets()">🔄 Yeni Üret</button>
+          </div>
+          
+          <div id="cloud-skip-install-msg" class="alert alert-info" style="display:none;">
+            ℹ️ <strong>Kurulum atlanıyor.</strong> Hedef sunucuda Supabase kurulu kabul edilecektir. Domain, SSL ve çevre değişkeni ayarları yapılmayacaktır.
+          </div>
+
+          <div class="form-grid" id="cloud-step3-inputs">
+            <div class="field">
+              <label>API Domain <span class="req">*</span></label>
+              <input id="cloud-api-domain" type="text" placeholder="api.proje.com" />
+            </div>
+            <div class="field">
+              <label>Studio Domain <span class="req">*</span></label>
+              <input id="cloud-studio-domain" type="text" placeholder="studio.proje.com" />
+            </div>
+            <div class="field full-width" style="margin-top:.5rem">
+              <label class="toggle-row">
+                <input type="checkbox" id="cloud-get-ssl" checked onchange="document.getElementById('cloud-cert-email-box').style.display=this.checked?'block':'none'" />
+                <span class="slider"></span>
+                <div class="text">
+                  <strong>Otomatik SSL (Let's Encrypt) Alınsın Mı?</strong>
+                  <div class="subtext">Kurulum sonrası Nginx için sertifika oluşturur. (DNS'in sunucuya yönlenmiş olması gerekir)</div>
+                </div>
+              </label>
+            </div>
+            <div class="field full-width" id="cloud-cert-email-box">
+              <label>SSL İçin E-posta <span class="req">*</span></label>
+              <input id="cloud-certbot-email" type="email" placeholder="admin@proje.com" />
+            </div>
+          </div>
+          
+          <div class="env-section" style="margin-top:2rem">
+            <div class="env-section-title">Temel Şifreler</div>
+            <div class="form-grid">
+              <div class="field">
+                <label>Postgres Şifresi <span class="req">*</span><span class="gen-badge">Oto</span></label>
+                <input id="cloud-postgres-password" type="text" />
+              </div>
+              <div class="field">
+                <label>Dashboard (Studio) Şifresi <span class="req">*</span><span class="gen-badge">Oto</span></label>
+                <input id="cloud-dashboard-password" type="text" />
+              </div>
+              <div class="field full-width">
+                <label>JWT Secret <span class="req">*</span><span class="gen-badge">Cloud'dan Kopyalayabilirsiniz</span></label>
+                <input id="cloud-jwt-secret" type="text" />
+                <div class="field-help">Cloud'daki JWT Secret'ınızı buraya girerseniz, mevcut tokenleriniz geçerliliğini korur. Aksi halde yeni üretilen kullanılacaktır.</div>
+              </div>
+              <div class="field full-width">
+                <label>Anon Key <span class="gen-badge">Oto</span></label>
+                <textarea id="cloud-anon-key" rows="2" readonly></textarea>
+              </div>
+              <div class="field full-width">
+                <label>Service Role Key <span class="gen-badge">Oto</span></label>
+                <textarea id="cloud-service-key" rows="2" readonly></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nav-btns">
+          <button class="btn btn-secondary" onclick="cloudGoStep(2)">⬅ Geri</button>
+          <button class="btn btn-primary" onclick="startCloudMigration()">Taşımayı Başlat 🚀</button>
+        </div>
+      </section>
+
+      <section class="step-panel" id="cloud-step4" style="display:none">
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(34,197,94,.15)">🚀</div>
+            Taşıma Süreci
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" id="cloud-progress-bar"></div>
+          </div>
+          <div id="cloud-log-container" style="background: #050810;border: 1px solid var(--border);border-radius: 12px;height: 400px;overflow-y: auto;padding: 1rem;font-family: 'JetBrains Mono', monospace;font-size: .8rem;line-height: 1.7;"></div>
+          
+          <div id="cloud-success-box" class="card" style="display:none; margin-top:1.5rem; background:rgba(34,197,94,.05); border-color:var(--success);">
+            <div class="card-title" style="color:var(--success)">✅ Taşıma Tamamlandı!</div>
+            <table class="cred-table">
+              <tr>
+                <td>Studio (Dashboard)</td>
+                <td id="cloud-res-studio"></td>
+              </tr>
+              <tr>
+                <td>API URL</td>
+                <td id="cloud-res-api"></td>
+              </tr>
+              <tr>
+                <td>Kullanıcı Adı</td>
+                <td>admin</td>
+              </tr>
+              <tr>
+                <td>Şifre</td>
+                <td id="cloud-res-pass"></td>
+              </tr>
+            </table>
+            
+            <div style="margin-top: 1.5rem; display: flex; justify-content: center;">
+              <button class="btn btn-primary" onclick="startComparison('cloud')" id="btn-compare" style="background: linear-gradient(135deg, var(--accent2), #818cf8); border: none; font-weight: 600;">
+                🔍 Verileri Karşılaştır ve Doğrula
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- COMPARISON MODAL -->
+  <div id="compare-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(10,14,26,0.85); backdrop-filter:blur(8px); z-index:999; align-items:center; justify-content:center;">
+    <div class="card" style="width:100%; max-width:800px; max-height:90vh; overflow-y:auto; position:relative;">
+      <button onclick="document.getElementById('compare-modal').style.display='none'" style="position:absolute; right:1.5rem; top:1.5rem; background:transparent; border:none; color:var(--muted); font-size:1.5rem; cursor:pointer;">&times;</button>
+      <div class="card-title">
+        <div class="icon" style="background:rgba(99,102,241,.15)">🔍</div>
+        Canlı (Cloud) & Self-Hosted Veri Karşılaştırma
+      </div>
+      
+      <div id="compare-loading" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:3rem 0; gap:1rem;">
+        <div class="spinner" style="width:40px; height:40px; border:4px solid rgba(62,207,142,.2); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite;"></div>
+        <div style="color:var(--muted); text-align:center;">Veritabanları analiz ediliyor ve fiziksel dosyalar sayılıp karşılaştırılıyor...<br/>Bu işlem 15-20 saniye sürebilir.</div>
+      </div>
+      
+      <div id="verify-compare-results" style="display:none;">
+        <h4 style="margin-bottom:1rem; color:var(--text);">1. Temel Tablolar (Satır Sayıları)</h4>
+        <table style="width:100%; text-align:left; border-collapse:collapse; margin-bottom:2rem; font-size:0.9rem;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="padding:0.5rem; color:var(--muted);">Tablo Adı</th>
+              <th style="padding:0.5rem; color:var(--muted);">Cloud (Kaynak)</th>
+              <th style="padding:0.5rem; color:var(--muted);">Self-Hosted (Hedef)</th>
+              <th style="padding:0.5rem; color:var(--muted);">Fark</th>
+              <th style="padding:0.5rem; color:var(--muted);">Durum</th>
+            </tr>
+          </thead>
+          <tbody id="compare-tables-body"></tbody>
+        </table>
+
+        <h4 style="margin-bottom:1rem; color:var(--text);">2. Storage Dosyaları (Boyut & Adet)</h4>
+        <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.9rem;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="padding:0.5rem; color:var(--muted);">Bucket</th>
+              <th style="padding:0.5rem; color:var(--muted);">Cloud Dosya/Boyut</th>
+              <th style="padding:0.5rem; color:var(--muted);">Hedef Dosya/Boyut</th>
+              <th style="padding:0.5rem; color:var(--muted);">Durum</th>
+            </tr>
+          </thead>
+          <tbody id="compare-storage-body"></tbody>
+        </table>
+        
+        <div style="margin-top:1.5rem; padding:1rem; background:rgba(239,68,68,.1); border-left:4px solid var(--danger); border-radius:4px; font-size:0.85rem; color:var(--text);" id="compare-warning">
+          <strong>Not:</strong> Eğer hedef sunucudaki satır sayıları kaynak sunucudan eksik ise, bu durum ilk yedekleme işlemi (db dump) yapıldıktan sonra canlı uygulamanıza yeni kayıtların eklenmiş olmasından kaynaklanmaktadır. Tam eşitleme için taşıma aracını kesintisiz bir bakım penceresinde baştan çalıştırabilirsiniz.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+
+  <!-- VERIFY MODE (Data Comparison) -->
+  <div id="verify-mode" style="display:none;">
+    <main>
+      <div class="card">
+        <div class="card-title">
+          <div class="icon" style="background:rgba(99,102,241,.15)">🔍</div>
+          Veritabanı ve Storage Doğrulama
+        </div>
+        <div style="font-size:0.9rem; color:var(--muted); margin-bottom:1.5rem;">
+          Bu araç, istediğiniz iki veritabanı (Cloud veya Self-Hosted) arasındaki tablo satır sayılarını ve storage dosyalarını (Fiziksel boyut/adet) karşılaştırmanızı sağlar.
+        </div>
+        
+        <div class="form-grid">
+          <!-- KAYNAK SÜTUNU -->
+          <div class="field" style="background:var(--surface2); padding:1rem; border-radius:8px; border:1px solid var(--border);">
+            <label style="font-size:0.9rem; color:var(--text); margin-bottom:0.5rem; display:block;">Kaynak Veritabanı</label>
+            <div style="margin-bottom:1rem; display:flex; gap:1rem; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; text-transform:none; letter-spacing:normal; white-space:nowrap; font-size:0.85rem; font-weight:400; color:var(--text);">
+                <input type="radio" name="verify-src-type" value="url" checked onchange="toggleVerifyUI()" style="margin:0; width:16px; height:16px;" /> Dışa Açık DB URL
+              </label>
+              <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; text-transform:none; letter-spacing:normal; white-space:nowrap; font-size:0.85rem; font-weight:400; color:var(--text);">
+                <input type="radio" name="verify-src-type" value="ssh" onchange="toggleVerifyUI()" style="margin:0; width:16px; height:16px;" /> Self-Hosted (SSH)
+              </label>
+            </div>
+            <div id="verify-src-url-box" class="field">
+              <label>Connection String <span class="req">*</span></label>
+              <input id="verify-src-url" type="text" placeholder="postgresql://postgres:pass@host:5432/postgres" />
+            </div>
+            <div id="verify-src-ssh-box" class="form-grid cols-1" style="display:none; gap:0.8rem;">
+              <div class="field">
+                <label>Sunucu IP / Domain <span class="req">*</span></label>
+                <input id="verify-src-ip" type="text" placeholder="1.2.3.4" />
+              </div>
+              <div class="field">
+                <label>Sunucu Root Şifresi <span class="req">*</span></label>
+                <input id="verify-src-pass" type="password" placeholder="SSH root şifresi" />
+              </div>
+            </div>
+          </div>
+
+          <!-- HEDEF SÜTUNU -->
+          <div class="field" style="background:var(--surface2); padding:1rem; border-radius:8px; border:1px solid var(--border);">
+            <label style="font-size:0.9rem; color:var(--text); margin-bottom:0.5rem; display:block;">Hedef Veritabanı</label>
+            <div style="margin-bottom:1rem; display:flex; gap:1rem; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; text-transform:none; letter-spacing:normal; white-space:nowrap; font-size:0.85rem; font-weight:400; color:var(--text);">
+                <input type="radio" name="verify-tgt-type" value="url" onchange="toggleVerifyUI()" style="margin:0; width:16px; height:16px;" /> Dışa Açık DB URL
+              </label>
+              <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; text-transform:none; letter-spacing:normal; white-space:nowrap; font-size:0.85rem; font-weight:400; color:var(--text);">
+                <input type="radio" name="verify-tgt-type" value="ssh" checked onchange="toggleVerifyUI()" style="margin:0; width:16px; height:16px;" /> Self-Hosted (SSH)
+              </label>
+            </div>
+            <div id="verify-tgt-url-box" class="field" style="display:none;">
+              <label>Connection String <span class="req">*</span></label>
+              <input id="verify-tgt-url" type="text" placeholder="postgresql://postgres:pass@host:5432/postgres" />
+            </div>
+            <div id="verify-tgt-ssh-box" class="form-grid cols-1" style="gap:0.8rem;">
+              <div class="field">
+                <label>Sunucu IP / Domain <span class="req">*</span></label>
+                <input id="verify-tgt-ip" type="text" placeholder="1.2.3.4" />
+              </div>
+              <div class="field">
+                <label>Supabase Instans <span class="req">*</span></label>
+                <select id="verify-tgt-instance">
+                  <option value="1">Instans 1 (Varsayılan)</option>
+                  <option value="2">Instans 2</option>
+                  <option value="3">Instans 3</option>
+                  <option value="4">Instans 4</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Sunucu Root Şifresi <span class="req">*</span></label>
+                <input id="verify-tgt-pass" type="password" placeholder="SSH root şifresi" />
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end;">
+          <button class="btn btn-primary" onclick="startComparison('verify')" style="background: linear-gradient(135deg, var(--accent2), #818cf8); border: none; font-weight: 600;">
+            🔍 Doğrulamayı Başlat
+          </button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="settings-mode" style="display:none">
+    <div class="stepper" id="stepper-settings">
+      <div class="step-item active" data-step="1">
+        <div class="step-num">1</div>
+        <div class="step-label">Sunucu Bağlantısı</div>
+      </div>
+      <div class="step-item" data-step="2">
+        <div class="step-num">2</div>
+        <div class="step-label">Ayarları Düzenle</div>
+      </div>
+      <div class="step-item" data-step="3">
+        <div class="step-num">3</div>
+        <div class="step-label">Uygulama</div>
+      </div>
+    </div>
+    <main>
+      <section class="step-panel active" id="settings-step1">
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(62,207,142,.15)">⚙️</div>
+            Kurulu Supabase Sunucusu
+          </div>
+          <div class="alert alert-info" style="margin-bottom:1rem">
+            <div>ℹ️ Bu mod, daha önce kurduğunuz veya taşıdığınız bir Supabase instans'ının domain ve .env ayarlarını <strong>sonradan değiştirmenizi</strong> sağlar. Mevcut değerler sunucudan okunur, yalnızca değiştirdikleriniz güncellenir ve etkilenen servisler yeniden başlatılır.</div>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Sunucu IP Adresi <span class="req">*</span></label>
+              <input id="set-host" type="text" placeholder="1.2.3.4" />
+            </div>
+            <div class="field">
+              <label>Supabase Instans <span class="req">*</span></label>
+              <select id="set-instance">
+                <option value="1">Instans 1 (Varsayılan)</option>
+                <option value="2">Instans 2</option>
+                <option value="3">Instans 3</option>
+                <option value="4">Instans 4</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Root Şifresi <span class="req">*</span></label>
+              <div class="input-with-btn">
+                <input id="set-pass" type="password" />
+                <button class="btn-icon" onclick="togglePass('set-pass')">👁</button>
+              </div>
+            </div>
+          </div>
+          <div id="set-fetch-status" style="margin-top:1rem; font-size:.85rem; color:var(--muted);"></div>
+        </div>
+        <div class="nav-btns">
+          <div></div>
+          <button class="btn btn-primary" id="set-fetch-btn" onclick="fetchCurrentSettings()">🔌 Bağlan ve Mevcut Ayarları Getir</button>
+        </div>
+      </section>
+
+      <section class="step-panel" id="settings-step2" style="display:none">
+        <div class="alert alert-info" id="set-current-info" style="margin-bottom:1rem"></div>
+
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(99,102,241,.15)">🌐</div>
+            Domain Ayarları
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Studio Domain <span class="req">*</span></label>
+              <input id="set-studio-domain" type="text" placeholder="db.ornek.com" />
+            </div>
+            <div class="field">
+              <label>API Domain <span class="req">*</span></label>
+              <input id="set-api-domain" type="text" placeholder="api.ornek.com" />
+            </div>
+            <div class="field full-width">
+              <label>Site URL (uygulamanın adresi)</label>
+              <input id="set-site-url" type="text" placeholder="https://uygulama.ornek.com" />
+            </div>
+            <div class="field full-width">
+              <label class="toggle-row">
+                <input type="checkbox" id="set-get-ssl" onchange="document.getElementById('set-certbot-email-field').style.display = this.checked ? '' : 'none'" />
+                <span class="slider"></span>
+                <div class="text">
+                  <strong>Let's Encrypt SSL Sertifikası Kur (Opsiyonel)</strong>
+                  <div class="subtext">Studio ve API domainleri için Certbot ile HTTPS sertifikası alınır. DNS kayıtları hedef sunucuyu göstermelidir.</div>
+                </div>
+              </label>
+            </div>
+            <div class="field full-width" id="set-certbot-email-field" style="display:none">
+              <label>Let's Encrypt E-postası <span class="req">*</span></label>
+              <input id="set-certbot-email" type="email" placeholder="admin@domaininiz.com" />
+              <div class="subtext" style="margin-top:.4rem; color:var(--muted); font-size:.78rem;">Let's Encrypt yenileme ve uyarı bildirimleri bu adrese gönderilir.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(245,158,11,.15)">🔐</div>
+            Auth Ayarları
+          </div>
+          <div class="form-grid">
+            <div class="field full-width">
+              <label>Ek Yönlendirme URL'leri (ADDITIONAL_REDIRECT_URLS)</label>
+              <input id="set-env-ADDITIONAL_REDIRECT_URLS" type="text" placeholder="https://app1.com,https://app2.com" />
+            </div>
+            <div class="field">
+              <label>JWT Süresi — saniye (JWT_EXPIRY)</label>
+              <input id="set-env-JWT_EXPIRY" type="text" placeholder="3600" />
+            </div>
+            <div class="field full-width">
+              <label class="toggle-row">
+                <input type="checkbox" id="set-env-DISABLE_SIGNUP" />
+                <span class="slider"></span>
+                <div class="text"><strong>Yeni Kayıtları Kapat (DISABLE_SIGNUP)</strong></div>
+              </label>
+            </div>
+            <div class="field full-width">
+              <label class="toggle-row">
+                <input type="checkbox" id="set-env-ENABLE_EMAIL_SIGNUP" />
+                <span class="slider"></span>
+                <div class="text"><strong>E-posta ile Kayıt (ENABLE_EMAIL_SIGNUP)</strong></div>
+              </label>
+            </div>
+            <div class="field full-width">
+              <label class="toggle-row">
+                <input type="checkbox" id="set-env-ENABLE_EMAIL_AUTOCONFIRM" />
+                <span class="slider"></span>
+                <div class="text"><strong>E-postayı Otomatik Onayla (ENABLE_EMAIL_AUTOCONFIRM)</strong></div>
+              </label>
+            </div>
+            <div class="field full-width">
+              <label class="toggle-row">
+                <input type="checkbox" id="set-env-ENABLE_ANONYMOUS_USERS" />
+                <span class="slider"></span>
+                <div class="text"><strong>Anonim Kullanıcılar (ENABLE_ANONYMOUS_USERS)</strong></div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(56,189,248,.15)">✉️</div>
+            SMTP (E-posta) Ayarları
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>SMTP Sunucusu (SMTP_HOST)</label>
+              <input id="set-env-SMTP_HOST" type="text" placeholder="smtp.ornek.com" />
+            </div>
+            <div class="field">
+              <label>SMTP Port (SMTP_PORT)</label>
+              <input id="set-env-SMTP_PORT" type="text" placeholder="587" />
+            </div>
+            <div class="field">
+              <label>SMTP Kullanıcısı (SMTP_USER)</label>
+              <input id="set-env-SMTP_USER" type="text" />
+            </div>
+            <div class="field">
+              <label>SMTP Şifresi (SMTP_PASS)</label>
+              <input id="set-env-SMTP_PASS" type="text" class="mono" />
+            </div>
+            <div class="field">
+              <label>Gönderen Adı (SMTP_SENDER_NAME)</label>
+              <input id="set-env-SMTP_SENDER_NAME" type="text" placeholder="Supabase" />
+            </div>
+            <div class="field">
+              <label>Yönetici E-postası (SMTP_ADMIN_EMAIL)</label>
+              <input id="set-env-SMTP_ADMIN_EMAIL" type="text" placeholder="noreply@ornek.com" />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(34,197,94,.15)">🖥️</div>
+            Studio Ayarları
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Studio Giriş Şifresi (DASHBOARD_PASSWORD)</label>
+              <input id="set-env-DASHBOARD_PASSWORD" type="text" class="mono" />
+            </div>
+            <div class="field">
+              <label>OpenAI API Key (Studio AI — OPENAI_API_KEY)</label>
+              <input id="set-env-OPENAI_API_KEY" type="text" class="mono" placeholder="sk-..." />
+            </div>
+            <div class="field">
+              <label>Organizasyon Adı (STUDIO_DEFAULT_ORGANIZATION)</label>
+              <input id="set-env-STUDIO_DEFAULT_ORGANIZATION" type="text" />
+            </div>
+            <div class="field">
+              <label>Proje Adı (STUDIO_DEFAULT_PROJECT)</label>
+              <input id="set-env-STUDIO_DEFAULT_PROJECT" type="text" />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(168,85,247,.15)">🧩</div>
+            Gelişmiş: Diğer .env Değerleri
+          </div>
+          <div class="field full-width">
+            <label>Ek .env değişiklikleri (satır başına bir KEY=VALUE)</label>
+            <textarea id="set-extra-env" rows="4" placeholder="ORNEK_ANAHTAR=deger&#10;FUNCTIONS_VERIFY_JWT=true"></textarea>
+          </div>
+          <div class="alert alert-warn" style="margin-top:1rem">
+            <div>⚠️ Güvenlik nedeniyle secret ve altyapı anahtarları bu ekrandan <strong>değiştirilemez</strong> (sunucuda otomatik atlanır): POSTGRES_PASSWORD, JWT_SECRET, ANON_KEY, SERVICE_ROLE_KEY, SECRET_KEY_BASE, VAULT_ENC_KEY, PG_META_CRYPTO_KEY, COMPOSE_PROJECT_NAME, port anahtarları. Bunların değişimi çalışan sistemi bozar.</div>
+          </div>
+        </div>
+
+        <div class="nav-btns">
+          <button class="btn btn-secondary" onclick="settingsGoStep(1)">🡠 Geri</button>
+          <button class="btn btn-primary" onclick="startSettingsUpdate()">Değişiklikleri Uygula 🚀</button>
+        </div>
+      </section>
+
+      <section class="step-panel" id="settings-step3" style="display:none">
+        <div class="card">
+          <div class="card-title">
+            <div class="icon" style="background:rgba(34,197,94,.15)">🚀</div>
+            Ayarlar Uygulanıyor
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" id="set-progress-bar"></div>
+          </div>
+          <div id="set-log-container" style="background: #050810;border: 1px solid var(--border);border-radius: 12px;height: 400px;overflow-y: auto;padding: 1rem;font-family: 'JetBrains Mono', monospace;font-size: .8rem;line-height: 1.7;"></div>
+
+          <div id="set-success-box" class="card" style="display:none; margin-top:1.5rem; background:rgba(34,197,94,.05); border-color:var(--success);">
+            <div class="card-title" style="color:var(--success)">✅ Ayarlar Güncellendi!</div>
+            <table class="cred-table">
+              <tr>
+                <td>Studio (Dashboard)</td>
+                <td id="set-res-studio"></td>
+              </tr>
+              <tr>
+                <td>API URL</td>
+                <td id="set-res-api"></td>
+              </tr>
+            </table>
+            <div class="nav-btns" style="margin-top:1rem">
+              <div></div>
+              <button class="btn btn-secondary" onclick="settingsGoStep(1)">🔄 Yeni Değişiklik Yap</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    let currentStep = 1;
+    let envData = {};
+    let sessionId = 'sess_' + Date.now();
+    let activeMode = 'migration';
+
+    function setMode(mode) {
+      activeMode = mode;
+      const isMigration = mode === 'migration';
+      const isClean = mode === 'clean';
+      const isCloud = mode === 'cloud';
+      const isVerify = mode === 'verify';
+      const isCompare = mode === 'compare';
+      const isExport = mode === 'export';
+      const isSettings = mode === 'settings';
+
+      document.getElementById('migration-mode').style.display = isMigration ? '' : 'none';
+      document.getElementById('clean-mode').style.display = isClean ? '' : 'none';
+      document.getElementById('cloud-mode').style.display = isCloud ? '' : 'none';
+      document.getElementById('verify-mode').style.display = isVerify ? '' : 'none';
+      document.getElementById('compare-mode').style.display = isCompare ? '' : 'none';
+      document.getElementById('export-mode').style.display = isExport ? '' : 'none';
+      document.getElementById('settings-mode').style.display = isSettings ? '' : 'none';
+
+      document.getElementById('mode-btn-migration').classList.toggle('active', isMigration);
+      document.getElementById('mode-btn-clean').classList.toggle('active', isClean);
+      document.getElementById('mode-btn-cloud').classList.toggle('active', isCloud);
+      document.getElementById('mode-btn-verify').classList.toggle('active', isVerify);
+      document.getElementById('mode-btn-compare').classList.toggle('active', isCompare);
+      document.getElementById('mode-btn-export').classList.toggle('active', isExport);
+      document.getElementById('mode-btn-settings').classList.toggle('active', isSettings);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function toggleVerifyUI() {
+      const srcType = document.querySelector('input[name="verify-src-type"]:checked').value;
+      const tgtType = document.querySelector('input[name="verify-tgt-type"]:checked').value;
+      
+      document.getElementById('verify-src-url-box').style.display = srcType === 'url' ? 'flex' : 'none';
+      document.getElementById('verify-src-ssh-box').style.display = srcType === 'ssh' ? 'flex' : 'none';
+      
+      document.getElementById('verify-tgt-url-box').style.display = tgtType === 'url' ? 'flex' : 'none';
+      document.getElementById('verify-tgt-ssh-box').style.display = tgtType === 'ssh' ? 'flex' : 'none';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // ─── STEP NAVİGASYON ─────────────────────────────────────────
+    function goStep(n) {
+      document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('step' + n).classList.add('active');
+      document.querySelectorAll('.step-item').forEach(el => {
+        const s = +el.dataset.step;
+        el.classList.toggle('active', s === n);
+        el.classList.toggle('done', s < n);
+      });
+      currentStep = n;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ─── PASS TOGGLE ─────────────────────────────────────────────
+    function togglePass(id) {
+      const el = document.getElementById(id);
+      el.type = el.type === 'password' ? 'text' : 'password';
+    }
+
+    // ─── KAYNAK SUNUCU BAĞLANTI ───────────────────────────────────
+    async function connectSource() {
+      const host = document.getElementById('src-host').value.trim();
+      const password = document.getElementById('src-pass').value;
+      if (!host || !password) return alert('IP ve şifre gerekli!');
+
+      const btn = document.getElementById('btn-connect');
+      btn.innerHTML = '<span class="spinner"></span> Bağlanıyor...';
+      btn.disabled = true;
+      document.getElementById('btn-force-continue').style.display = 'none';
+
+      // Kontrol panelini sıfırla
+      document.getElementById('check-panel').style.display = 'block';
+      document.getElementById('check-list').innerHTML = '<span style="color:var(--muted);font-size:.82rem">⏳ Kontrol ediliyor...</span>';
+      document.getElementById('check-error').style.display = 'none';
+      document.getElementById('check-ok-msg').style.display = 'none';
+
+      try {
+        const res = await fetch('/api/fetch-env', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ host, password })
+        });
+        const data = await res.json();
+
+        // Kontrol sonuçlarını göster
+        if (data.checks && data.checks.length) {
+          const icons = { ok: '✅', warn: '⚠️', error: '❌' };
+          const cols = { ok: 'var(--success)', warn: 'var(--accent3)', error: 'var(--danger)' };
+          document.getElementById('check-list').innerHTML = data.checks.map(c =>
+            `<div style="display:flex;align-items:flex-start;gap:.5rem;font-size:.82rem">
+               <span>${icons[c.status]}</span>
+               <span style="color:${cols[c.status]}">${c.msg}</span>
+             </div>`
+          ).join('');
+        }
+
+        if (!data.success) {
+          const errEl = document.getElementById('check-error');
+          errEl.style.display = 'flex';
+          errEl.textContent = '❌ ' + data.error;
+          if (data.error && data.error.includes('.env')) {
+            showInstallModal();
+          } else if (data.canInstall) {
+            // Geçersiz sunucu — kullanıcıya seçenek sun
+            document.getElementById('btn-force-continue').style.display = 'inline-flex';
+          }
+          return;
+        }
+
+        document.getElementById('check-ok-msg').style.display = 'flex';
+        envData = data.env;
+        await generateAllSecrets(data.env);
+
+        const fillFields = [
+          'POSTGRES_HOST', 'POSTGRES_DB', 'POSTGRES_PORT',
+          'POOLER_PROXY_PORT_TRANSACTION', 'POOLER_DEFAULT_POOL_SIZE', 'POOLER_MAX_CLIENT_CONN',
+          'POOLER_TENANT_ID', 'POOLER_DB_POOL_SIZE',
+          'KONG_HTTP_PORT', 'KONG_HTTPS_PORT', 'PGRST_DB_SCHEMAS',
+          'JWT_EXPIRY', 'DISABLE_SIGNUP', 'ENABLE_EMAIL_SIGNUP', 'ENABLE_EMAIL_AUTOCONFIRM',
+          'ENABLE_ANONYMOUS_USERS', 'ADDITIONAL_REDIRECT_URLS',
+          'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_ADMIN_EMAIL', 'SMTP_SENDER_NAME',
+          'STUDIO_DEFAULT_ORGANIZATION', 'STUDIO_DEFAULT_PROJECT', 'OPENAI_API_KEY',
+          'FUNCTIONS_VERIFY_JWT', 'DASHBOARD_USERNAME', 'DASHBOARD_PASSWORD'
+        ];
+        fillFields.forEach(key => {
+          const el = document.getElementById('env-' + key);
+          if (el && envData[key] !== undefined) el.value = envData[key];
+        });
+
+        setTimeout(() => goStep(2), 800);
+
+      } catch (e) {
+        if (e.message && e.message.includes('.env dosyası bulunamadı')) {
+          showInstallModal();
+        } else {
+          const errEl = document.getElementById('check-error');
+          errEl.style.display = 'flex';
+          errEl.textContent = '❌ Bağlantı hatası: ' + e.message;
+        }
+      } finally {
+        btn.innerHTML = '🔗 Bağlan ve Env\'leri Yükle';
+        btn.disabled = false;
+      }
+    }
+
+    // "Yine de Devam Et" — kontrolleri atlayarak yeniden .env okumayı dene
+    async function forceConnectSource() {
+      document.getElementById('btn-force-continue').style.display = 'none';
+      const okMsg = document.getElementById('check-ok-msg');
+      okMsg.style.display = 'flex';
+      okMsg.textContent = '⚠️ Kontroller atlandı, .env okunmaya çalışılıyor...';
+      const host = document.getElementById('src-host').value.trim();
+      const password = document.getElementById('src-pass').value;
+      try {
+        const r = await fetch('/api/fetch-env', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ host, password }) });
+        const d = await r.json();
+        if (d.success) { envData = d.env; await generateAllSecrets(d.env); goStep(2); }
+        else showInstallModal();
+      } catch (e) { alert('Hata: ' + e.message); }
+    }
+
+
+    // ─── SECRET ÜRETİM ───────────────────────────────────────────
+    async function generateAllSecrets(existing = {}) {
+      const res = await fetch('/api/generate-secrets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const data = await res.json();
+      if (!data.success) return;
+      const s = data.secrets;
+      setEnvField('POSTGRES_PASSWORD', s.POSTGRES_PASSWORD);
+      setEnvField('JWT_SECRET', s.JWT_SECRET);
+      setEnvField('ANON_KEY', s.ANON_KEY);
+      setEnvField('SERVICE_ROLE_KEY', s.SERVICE_ROLE_KEY);
+      setEnvField('DASHBOARD_PASSWORD', existing.DASHBOARD_PASSWORD || s.DASHBOARD_PASSWORD);
+      setEnvField('DASHBOARD_USERNAME', existing.DASHBOARD_USERNAME || 'admin');
+      setEnvField('SECRET_KEY_BASE', s.SECRET_KEY_BASE);
+      setEnvField('VAULT_ENC_KEY', s.VAULT_ENC_KEY);
+      setEnvField('PG_META_CRYPTO_KEY', s.PG_META_CRYPTO_KEY);
+      setEnvField('LOGFLARE_PUBLIC_ACCESS_TOKEN', s.LOGFLARE_PUBLIC_ACCESS_TOKEN);
+      setEnvField('LOGFLARE_PRIVATE_ACCESS_TOKEN', s.LOGFLARE_PRIVATE_ACCESS_TOKEN);
+    }
+
+    async function genJWT() {
+      const res = await fetch('/api/generate-secrets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const data = await res.json();
+      setEnvField('JWT_SECRET', data.secrets.JWT_SECRET);
+      setEnvField('ANON_KEY', data.secrets.ANON_KEY);
+      setEnvField('SERVICE_ROLE_KEY', data.secrets.SERVICE_ROLE_KEY);
+    }
+
+    function genField(id, type, len) {
+      // Client-side basit random (gerçek üretim servera gider)
+      fetch('/api/generate-secrets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        .then(r => r.json()).then(d => {
+          const map = {
+            POSTGRES_PASSWORD: d.secrets.POSTGRES_PASSWORD,
+            DASHBOARD_PASSWORD: d.secrets.DASHBOARD_PASSWORD,
+          };
+          if (map[id]) setEnvField(id, map[id]);
+        });
+    }
+
+    function setEnvField(key, val) {
+      const el = document.getElementById('env-' + key);
+      if (el) el.value = val;
+    }
+
+    function collectEnv() {
+      const keys = [
+        'POSTGRES_PASSWORD', 'JWT_SECRET', 'ANON_KEY', 'SERVICE_ROLE_KEY',
+        'DASHBOARD_USERNAME', 'DASHBOARD_PASSWORD', 'SECRET_KEY_BASE', 'VAULT_ENC_KEY', 'PG_META_CRYPTO_KEY',
+        'POSTGRES_HOST', 'POSTGRES_DB', 'POSTGRES_PORT',
+        'POOLER_PROXY_PORT_TRANSACTION', 'POOLER_DEFAULT_POOL_SIZE', 'POOLER_MAX_CLIENT_CONN',
+        'POOLER_TENANT_ID', 'POOLER_DB_POOL_SIZE',
+        'KONG_HTTP_PORT', 'KONG_HTTPS_PORT', 'PGRST_DB_SCHEMAS',
+        'JWT_EXPIRY', 'DISABLE_SIGNUP', 'API_EXTERNAL_URL',
+        'ENABLE_EMAIL_SIGNUP', 'ENABLE_EMAIL_AUTOCONFIRM', 'ENABLE_ANONYMOUS_USERS', 'ADDITIONAL_REDIRECT_URLS',
+        'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_ADMIN_EMAIL', 'SMTP_SENDER_NAME',
+        'STUDIO_DEFAULT_ORGANIZATION', 'STUDIO_DEFAULT_PROJECT', 'OPENAI_API_KEY', 'FUNCTIONS_VERIFY_JWT',
+        'LOGFLARE_PUBLIC_ACCESS_TOKEN', 'LOGFLARE_PRIVATE_ACCESS_TOKEN',
+        'IMGPROXY_ENABLE_WEBP_DETECTION'
+      ];
+      const env = {};
+      keys.forEach(k => {
+        const el = document.getElementById('env-' + k);
+        if (el) env[k] = el.value;
+      });
+
+      // UI'da görünmeyen ama yeni Supabase sürümlerinde kritik olan değişkenleri
+      // kaynak sunucudan aynen taşı.
+      [
+        'REGION',
+        'SERVER_REGION',
+        'STORAGE_S3_REGION',
+        'VECTOR_BUCKET_REGION',
+        'AWS_DEFAULT_REGION'
+      ].forEach(k => {
+        if ((env[k] === undefined || env[k] === '') && envData && envData[k] !== undefined) {
+          env[k] = envData[k];
+        }
+      });
+
+      return env;
+    }
+
+    function renderCompareStats(summary) {
+      const stats = [
+        { value: summary.totalDifferences, label: 'Toplam fark' },
+        { value: `${summary.tablesOnlyInServer1} / ${summary.tablesOnlyInServer2}`, label: 'Eksik tablo S1 / S2' },
+        { value: `${summary.columnsOnlyInServer1} / ${summary.columnsOnlyInServer2}`, label: 'Eksik kolon S1 / S2' },
+        { value: summary.columnDefinitionDiffs, label: 'Kolon tanım farkı' },
+        { value: summary.manualReviewItems, label: 'Manuel kontrol' },
+        { value: `${summary.server1TableCount}/${summary.server1ColumnCount} • ${summary.server2TableCount}/${summary.server2ColumnCount}`, label: 'S1 tablo/kolon • S2 tablo/kolon' }
+      ];
+
+      if (summary.server1PolicyCount !== undefined || summary.server2PolicyCount !== undefined) {
+        stats.push(
+          { value: `${summary.rlsEnabledOnlyInServer1} / ${summary.rlsEnabledOnlyInServer2}`, label: 'RLS açık farkı S1 / S2' },
+          { value: `${summary.rlsForcedOnlyInServer1} / ${summary.rlsForcedOnlyInServer2}`, label: 'FORCE RLS farkı S1 / S2' },
+          { value: `${summary.policiesOnlyInServer1} / ${summary.policiesOnlyInServer2}`, label: 'Eksik policy S1 / S2' },
+          { value: summary.policyDefinitionDiffs, label: 'Policy tanım farkı' },
+          { value: `${summary.server1RlsEnabledCount}/${summary.server1PolicyCount} • ${summary.server2RlsEnabledCount}/${summary.server2PolicyCount}`, label: 'S1 RLS tablo/policy • S2 RLS tablo/policy' }
+        );
+      }
+
+      document.getElementById('compare-stats').innerHTML = stats.map(stat => `
+        <div class="stat-card">
+          <div class="value">${escapeHtml(stat.value)}</div>
+          <div class="label">${escapeHtml(stat.label)}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderCompareDiffItem(diff) {
+      const target = `${diff.schema}.${diff.table}${diff.column ? '.' + diff.column : ''}${diff.policy ? '.' + diff.policy : ''}`;
+      let title = '';
+      let meta = '';
+
+      if (diff.type === 'table_missing') {
+        title = `📦 ${target} yalnızca ${diff.presentOn} tarafında var`;
+        meta = `Bu farkı kapatmak için oluşturma SQL'i ${diff.runOn} bloğuna eklendi.`;
+      } else if (diff.type === 'column_missing') {
+        title = `🧩 ${target} yalnızca ${diff.presentOn} tarafında var`;
+        meta = `Eksik kolonu tamamlamak için SQL ${diff.runOn} bloğuna eklendi.`;
+      } else if (diff.type === 'rls_enabled_missing') {
+        title = `🔐 ${diff.schema}.${diff.table} için RLS yalnızca ${diff.presentOn} tarafında aktif`;
+        meta = `Eksik RLS enable SQL'i ${diff.runOn} bloğuna eklendi.`;
+      } else if (diff.type === 'rls_force_missing') {
+        title = `🛡️ ${diff.schema}.${diff.table} için FORCE RLS yalnızca ${diff.presentOn} tarafında aktif`;
+        meta = `Eksik FORCE RLS SQL'i ${diff.runOn} bloğuna eklendi.`;
+      } else if (diff.type === 'rls_enabled_sync') {
+        title = `🔐 ${diff.schema}.${diff.table} RLS durumu kaynak sunucuya göre farklı`;
+        meta = `${diff.runOn} üzerinde ${diff.action} ROW LEVEL SECURITY SQL'i üretildi.`;
+      } else if (diff.type === 'rls_force_sync') {
+        title = `🛡️ ${diff.schema}.${diff.table} FORCE RLS durumu kaynak sunucuya göre farklı`;
+        meta = `${diff.runOn} üzerinde ${diff.action} ROW LEVEL SECURITY SQL'i üretildi.`;
+      } else if (diff.type === 'policy_missing') {
+        title = `📜 ${target} policy'si yalnızca ${diff.presentOn} tarafında var`;
+        meta = `Eksik policy'yi tamamlamak için CREATE POLICY SQL'i ${diff.runOn} bloğuna eklendi.`;
+      } else if (diff.type === 'policy_extra') {
+        title = `🧹 ${target} policy'si yalnızca ${diff.presentOn} tarafında bulunuyor`;
+        meta = diff.runOn === 'Manuel kontrol'
+          ? `Hedefte fazladan duran policy tespit edildi; otomatik kaldırma kapalı olduğu için yalnızca raporlandı.`
+          : `Hedefteki fazla policy'yi kaldırmak için SQL ${diff.runOn} bloğuna eklendi.`;
+      } else if (diff.type === 'policy_mismatch') {
+        title = `⚠️ ${target} policy'si iki sunucuda farklı tanımlanmış`;
+        meta = diff.runOn === 'Manuel kontrol'
+          ? `Güvenli otomatik SQL üretilmedi. Alan bazlı farklar aşağıda listelendi.`
+          : `Hedef policy'yi kaynağa göre hizalamak için SQL ${diff.runOn} bloğuna eklendi.`;
+      } else {
+        title = `⚖️ ${target} iki sunucuda farklı tanımlanmış`;
+        meta = `Her iki yön için de SQL üretildi. Sunucu 1 bloğu Sunucu 1'i Sunucu 2'ye, Sunucu 2 bloğu Sunucu 2'yi Sunucu 1'e yaklaştırır.`;
+      }
+
+      const definitions = [];
+      if (diff.server1Definition) {
+        definitions.push(`<div class="definition-box"><strong>Sunucu 1</strong>${escapeHtml(diff.server1Definition)}</div>`);
+      }
+      if (diff.server2Definition) {
+        definitions.push(`<div class="definition-box"><strong>Sunucu 2</strong>${escapeHtml(diff.server2Definition)}</div>`);
+      }
+
+      const differenceDetails = Array.isArray(diff.differenceDetails) ? diff.differenceDetails : [];
+      const detailHtml = differenceDetails.length ? `
+        <div class="diff-detail-list">
+          ${differenceDetails.map(detail => `
+            <div class="diff-detail-row">
+              <div class="diff-detail-field">${escapeHtml(detail.field)}</div>
+              <div class="diff-detail-values">
+                <div>${escapeHtml(detail.source)}</div>
+                <div>${escapeHtml(detail.target)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : '';
+
+      return `
+        <div class="diff-item">
+          <div class="diff-item-title">${escapeHtml(title)}</div>
+          <div class="diff-item-meta">${escapeHtml(meta)}</div>
+          ${definitions.length ? `<div class="definition-grid">${definitions.join('')}</div>` : ''}
+          ${detailHtml}
+          ${diff.warning ? `<div class="diff-item-warning">⚠️ ${escapeHtml(diff.warning)}</div>` : ''}
+        </div>
+      `;
+    }
+
+    function renderCompareResults(data) {
+      const summary = data.summary || {};
+      const differences = Array.isArray(data.differences) ? data.differences : [];
+      const compareStatus = document.getElementById('compare-status');
+
+      compareStatus.className = `tag ${summary.totalDifferences ? 'tag-yellow' : 'tag-green'}`;
+      compareStatus.style.background = '';
+      compareStatus.style.color = '';
+      compareStatus.textContent = summary.totalDifferences ? '⚠️ Fark bulundu' : '✅ Eşleşiyor';
+
+      document.getElementById('compare-results').style.display = 'block';
+      document.getElementById('compare-scope').className = 'alert alert-info';
+      document.getElementById('compare-scope').innerHTML =
+        `ℹ️ Karşılaştırılan schema: <strong>${escapeHtml((data.comparedSchemas || []).join(', ') || 'system dışı tüm schema\'lar')}</strong><br>${escapeHtml(data.scope || '')}`;
+      renderCompareStats(summary);
+      document.getElementById('compare-empty').style.display = summary.totalDifferences ? 'none' : 'flex';
+      document.getElementById('compare-diff-list').innerHTML = differences.map(renderCompareDiffItem).join('');
+
+      document.getElementById('compare-sql-card-1').style.display = 'block';
+      document.getElementById('compare-sql-card-2').style.display = 'block';
+      document.getElementById('compare-sql-1').textContent = data.server1Sql || '-- Sunucu 1 için SQL üretilmedi.';
+      document.getElementById('compare-sql-2').textContent = data.server2Sql || '-- Sunucu 2 için SQL üretilmedi.';
+    }
+
+    async function compareSchemas() {
+      const server1Host = document.getElementById('cmp-host-1').value.trim();
+      const server1Password = document.getElementById('cmp-pass-1').value;
+      const server2Host = document.getElementById('cmp-host-2').value.trim();
+      const server2Password = document.getElementById('cmp-pass-2').value;
+      const schemaFilter = document.getElementById('cmp-schemas').value.trim();
+      const includeRls = document.getElementById('cmp-include-rls').checked;
+      const rlsSyncDirection = document.getElementById('cmp-rls-sync-direction').value;
+      const recreateMismatchedPolicies = document.getElementById('cmp-rls-recreate').checked;
+
+      if (!server1Host || !server1Password || !server2Host || !server2Password) {
+        return alert('İki sunucu için de host ve root şifresi gerekli!');
+      }
+
+      const btn = document.getElementById('btn-compare');
+      const compareStatus = document.getElementById('compare-status');
+      const compareScope = document.getElementById('compare-scope');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Karşılaştırılıyor...';
+
+      document.getElementById('compare-results').style.display = 'block';
+      document.getElementById('compare-sql-card-1').style.display = 'none';
+      document.getElementById('compare-sql-card-2').style.display = 'none';
+      document.getElementById('compare-empty').style.display = 'none';
+      document.getElementById('compare-stats').innerHTML = '';
+      document.getElementById('compare-diff-list').innerHTML = '';
+      compareStatus.className = 'tag tag-yellow';
+      compareStatus.style.background = '';
+      compareStatus.style.color = '';
+      compareStatus.textContent = '⏳ Çalışıyor';
+      compareScope.className = 'alert alert-info';
+      compareScope.textContent = includeRls
+        ? 'ℹ️ Sunucular okunuyor; şema ve RLS/policy farkları çıkarılıyor...'
+        : 'ℹ️ Sunucular okunuyor ve şema farkları çıkarılıyor...';
+
+      try {
+        const res = await fetch('/api/compare-schema', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            server1Host,
+            server1Password,
+            server2Host,
+            server2Password,
+            schemaFilter,
+            includeRls,
+            rlsSyncDirection,
+            recreateMismatchedPolicies
+          })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.error || 'Karşılaştırma başarısız oldu');
+        }
+        renderCompareResults(data);
+      } catch (e) {
+        compareStatus.className = 'tag';
+        compareStatus.style.background = 'rgba(239,68,68,.15)';
+        compareStatus.style.color = '#fca5a5';
+        compareStatus.textContent = '❌ Hata';
+        compareScope.className = 'alert alert-danger';
+        compareScope.textContent = '❌ ' + e.message;
+        document.getElementById('compare-stats').innerHTML = '';
+        document.getElementById('compare-diff-list').innerHTML = '';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '🔍 Karşılaştır ve SQL Üret';
+      }
+    }
+
+    async function exportStructureSql() {
+      const sourceHost = document.getElementById('exp-host').value.trim();
+      const sourcePassword = document.getElementById('exp-pass').value;
+      const schemaFilter = document.getElementById('exp-schemas').value.trim();
+      const includeBuckets = document.getElementById('exp-include-buckets').checked;
+
+      if (!sourceHost || !sourcePassword) {
+        return alert('Kaynak host ve root şifresi gerekli!');
+      }
+
+      const btn = document.getElementById('btn-export-structure');
+      const results = document.getElementById('export-results');
+      const scopeEl = document.getElementById('export-scope');
+      const warningEl = document.getElementById('export-warning');
+      const sqlEl = document.getElementById('export-sql-output');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> SQL üretiliyor...';
+      results.style.display = 'block';
+      scopeEl.className = 'alert alert-info';
+      scopeEl.textContent = 'ℹ️ Kaynak sunucu okunuyor ve SQL hazırlanıyor...';
+      warningEl.style.display = 'none';
+      warningEl.textContent = '';
+      sqlEl.textContent = '';
+
+      try {
+        const res = await fetch('/api/export-structure-sql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourceHost,
+            sourcePassword,
+            schemaFilter,
+            includeBuckets
+          })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.error || 'SQL üretimi başarısız oldu');
+        }
+
+        const summary = data.summary || {};
+        const bucketCount = Number(summary.bucketStatementCount || 0);
+        scopeEl.className = 'alert alert-success';
+        scopeEl.textContent = `✅ SQL hazır. Kapsam: ${summary.schemaScope || 'Tum schema\'lar'}. Bucket satırı: ${bucketCount}.`;
+        if (summary.bucketWarning) {
+          warningEl.style.display = 'flex';
+          warningEl.textContent = `⚠️ ${summary.bucketWarning}`;
+        }
+        sqlEl.textContent = data.sql || '-- SQL üretilemedi.';
+      } catch (e) {
+        scopeEl.className = 'alert alert-danger';
+        scopeEl.textContent = '❌ ' + e.message;
+        warningEl.style.display = 'none';
+        sqlEl.textContent = '';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '📤 SQL Üret';
+      }
+    }
+
+    // ─── MİGRASYON ───────────────────────────────────────────────
+    async function startMigration() {
+      const tgtHost = document.getElementById('tgt-host').value.trim();
+      const tgtPass = document.getElementById('tgt-pass').value;
+      const studioDomain = document.getElementById('studio-domain').value.trim();
+      const apiDomain = document.getElementById('api-domain').value.trim();
+      const siteUrl = document.getElementById('site-url').value.trim() || 'https://' + studioDomain;
+      const continueOnMinorErrors = document.getElementById('continue-on-minor-errors')?.checked || false;
+      const getSslEl = document.getElementById('get-ssl');
+      const getSSL = getSslEl ? getSslEl.checked : false;
+      const schemaOnly = document.getElementById('schema-only').checked;
+      const setupBackup = document.getElementById('setup-backup') ? document.getElementById('setup-backup').checked : false;
+      const certbotEmailEl = document.getElementById('certbot-email');
+      const certbotEmail = certbotEmailEl ? certbotEmailEl.value.trim() : '';
+
+      if (getSSL && !certbotEmail) return alert('SSL için Let\'s Encrypt e-postası gerekli!');
+
+      if (!tgtHost) return alert('Hedef IP gerekli!');
+      if (!tgtPass) return alert('Hedef şifre gerekli!');
+      if (!studioDomain || !apiDomain) return alert('Studio ve API domainleri gerekli!');
+
+      goStep(4);
+
+      // Her migration'da yeni session (retry durumunda loglar karışmasın)
+      sessionId = 'sess_' + Date.now();
+      const logEl = document.getElementById('log-container');
+      logEl.innerHTML = '';
+      let progress = 0;
+
+      const addLog = (msg, type = 'log') => {
+        const line = document.createElement('span');
+        line.className = 'log-line ' + type;
+        line.textContent = msg;
+        logEl.appendChild(line);
+        logEl.appendChild(document.createElement('br'));
+        logEl.scrollTop = logEl.scrollHeight;
+        if (type === 'step') {
+          progress = Math.min(progress + 14, 90);
+          document.getElementById('progress-bar').style.width = progress + '%';
+        }
+      };
+
+      // SSE bağlan
+      const evtSource = new EventSource(`/api/logs/${sessionId}`);
+      evtSource.onmessage = (e) => {
+        const d = JSON.parse(e.data);
+        if (d.type === 'done') {
+          evtSource.close();
+          document.getElementById('progress-bar').style.width = '100%';
+          document.getElementById('migration-status').textContent = '✅ Tamamlandı';
+          document.getElementById('migration-status').className = 'tag tag-green';
+          showSummary(d.env, studioDomain, apiDomain);
+        } else if (d.type === 'error') {
+          evtSource.close();
+          document.getElementById('migration-status').textContent = '❌ Hata';
+          document.getElementById('migration-status').className = 'tag';
+          document.getElementById('migration-status').style.background = 'rgba(239,68,68,.15)';
+          document.getElementById('migration-status').style.color = '#fca5a5';
+          addLog(d.msg, 'error');
+        } else {
+          addLog(d.msg, d.type || 'log');
+        }
+      };
+
+      const env = collectEnv();
+      const tgtInstance = document.getElementById('tgt-instance') ? document.getElementById('tgt-instance').value : '1';
+      await fetch('/api/migrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceHost: document.getElementById('src-host').value.trim(),
+          sourcePass: document.getElementById('src-pass').value,
+          targetHost: tgtHost,
+          targetPass: tgtPass,
+          targetInstance: tgtInstance,
+          studioDomain, apiDomain, siteUrl, getSSL, schemaOnly, certbotEmail,
+          env, sessionId, setupBackup, continueOnMinorErrors
+        })
+      });
+    }
+
+    function showSummary(env, studioDomain, apiDomain) {
+      document.getElementById('summary-card').style.display = 'block';
+
+      const apiUrl = `https://${apiDomain}`;
+      const studioUrl = `https://${studioDomain}`;
+
+      // ── OTOMATIK Üİ DEĞİRLER ──
+      const autoRows = [
+        ['NEXT_PUBLIC_SUPABASE_URL', apiUrl, 'Supabase API adresi (Kong gateway)'],
+        ['NEXT_PUBLIC_SUPABASE_ANON_KEY', env.ANON_KEY, 'Herkese açık JWT token'],
+        ['SUPABASE_SERVICE_ROLE_KEY', env.SERVICE_ROLE_KEY, 'Tam yetkili JWT token (gizli tutun!)'],
+        ['POSTGRES_PASSWORD', env.POSTGRES_PASSWORD, 'PostgreSQL root şifresi'],
+        ['JWT_SECRET', env.JWT_SECRET, 'JWT imza secret’ı'],
+        ['DASHBOARD_PASSWORD', env.DASHBOARD_PASSWORD, 'Supabase Studio giriş şifresi (admin)'],
+        ['Studio URL', studioUrl, 'Tarayıcıdan Supabase yönetim paneli'],
+      ];
+
+      const buildRow = ([k, v, hint]) => `
+        <tr>
+          <td><div style="font-weight:500">${k}</div><div style="font-size:.72rem;color:var(--muted);margin-top:.1rem">${hint}</div></td>
+          <td>
+            <span style="word-break:break-all">${v || '—'}</span>
+            ${v ? `<button class="copy-btn" onclick="copyText('${(v || '').replace(/'/g, "\\'")}')">📋</button>` : ''}
+          </td>
+        </tr>`;
+
+      document.getElementById('cred-table-auto').innerHTML = autoRows.map(buildRow).join('');
+
+      // ── HAZIR .ENV BLOĞU ──
+      const envLines = [
+        `# ─── Migration sonrası otomatik oluşturulan Supabase değerleri ───`,
+        `NEXT_PUBLIC_SUPABASE_URL=${apiUrl}`,
+        `NEXT_PUBLIC_SUPABASE_ANON_KEY=${env.ANON_KEY || ''}`,
+        `SUPABASE_SERVICE_ROLE_KEY=${env.SERVICE_ROLE_KEY || ''}`,
+        ``,
+        `# ─── Supabase yapılandırması ───`,
+        `JWT_SECRET=${env.JWT_SECRET || ''}`,
+        `POSTGRES_PASSWORD=${env.POSTGRES_PASSWORD || ''}`,
+        `DASHBOARD_PASSWORD=${env.DASHBOARD_PASSWORD || ''}`,
+        `API_EXTERNAL_URL=${apiUrl}`,
+        `SITE_URL=${siteUrlFromDomain(studioDomain)}`,
+        ``,
+        `# ─── Aşağıdakileri kendi değerlerinizle doldurun ───`,
+        `FAL_KEY=                    # fal.ai → Dashboard → API Keys`,
+        `GEMINI_API_KEY=             # console.cloud.google.com → API & Services`,
+        `FIREBASE_PROJECT_ID=        # console.firebase.google.com → Proje ayarları`,
+        `FIREBASE_CLIENT_EMAIL=      # Firebase Service Account e-postası`,
+        `FIREBASE_PRIVATE_KEY=       # Firebase Service Account JSON'dan alın`,
+        `SIGNER_AGENT_SECRET=        # openssl rand -base64 32`,
+        `VERIFY_TOKEN_SECRET=        # openssl rand -hex 32`,
+        `OTP_PEPPER=                 # openssl rand -hex 32`,
+        `ADMIN_SESSION_SECRET=       # openssl rand -base64 32`,
+        `CONF_PAGE_PASSWORD=         # Manuel belirleyin`,
+        `KONG_CORS_ORIGINS=https://YOUR_DOMAIN,https://www.YOUR_DOMAIN`,
+        `GOTRUE_SITE_URL=https://YOUR_DOMAIN`,
+        `APP_BASE_URL=https://YOUR_DOMAIN`,
+        `APP_ALLOWED_ORIGINS=https://YOUR_DOMAIN`,
+        `NEXT_PUBLIC_AUTH_PASSWORD_RESET_REDIRECT=https://YOUR_DOMAIN/admin/reset-password`,
+        `AUTH_PASSWORD_RESET_REDIRECT=https://YOUR_DOMAIN/admin/reset-password`,
+        `NEXT_PUBLIC_MEET_BASE_URL=https://meet.DOMAIN`,
+      ];
+      document.getElementById('env-block').textContent = envLines.join('\n');
+
+      // ── DIŞARIDAN ALINACAKLAR ──
+      const externalRows = [
+        ['FAL_KEY', 'fal.ai', 'https://www.fal.ai/dashboard → API Keys'],
+        ['GEMINI_API_KEY', 'Google Cloud', 'console.cloud.google.com → APIs & Services → Credentials'],
+        ['DETSIS_SUPABASE_URL &amp; KEY', 'Başka Supabase projesi', 'Mevcut DETSIS projesinden alın'],
+        ['FIREBASE_*', 'Firebase Console', 'console.firebase.google.com → Proje Ayarları → Servis Hesabı'],
+        ['SIGNER_AGENT_SECRET', 'Terminal', 'openssl rand -base64 32'],
+        ['VERIFY_TOKEN_SECRET', 'Terminal', 'openssl rand -hex 32'],
+        ['OTP_PEPPER', 'Terminal', 'openssl rand -hex 32'],
+        ['ADMIN_SESSION_SECRET', 'Terminal', 'openssl rand -base64 32'],
+        ['CONF_PAGE_PASSWORD', 'Manuel', 'Kendiniz belirleyin'],
+        ['KONG_CORS_ORIGINS', 'Alan adınız', 'Uygulamanıza ait domain(ler)'],
+        ['GOTRUE_SITE_URL / APP_BASE_URL', 'Alan adınız', 'Uygulamanıza ait ana domain'],
+        ['NEXT_PUBLIC_MEET_BASE_URL', 'Jitsi/Meet sunucunuz', 'meet. subdomain’ınız'],
+      ];
+
+      document.getElementById('cred-table-external').innerHTML = externalRows.map(([k, src, detail]) => `
+        <tr>
+          <td><span style="font-family:'JetBrains Mono',monospace;font-size:.78rem">${k}</span></td>
+          <td><span style="color:var(--accent3);font-weight:600">${src}</span><br><span style="font-size:.75rem;color:var(--muted)">${detail}</span></td>
+        </tr>`).join('');
+
+      document.getElementById('summary-card').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function siteUrlFromDomain(d) { return `https://${d}`; }
+
+    function copyEnvBlock() {
+      const text = document.getElementById('env-block').textContent;
+      copyText(text);
+    }
+
+    function copyFromElement(id) {
+      const el = document.getElementById(id);
+      if (el) copyText(el.textContent);
+    }
+
+    function downloadTextFile(fileName, text) {
+      const blob = new Blob([text], { type: 'application/sql;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadExportSql() {
+      const sql = document.getElementById('export-sql-output')?.textContent || '';
+      if (!sql.trim()) {
+        return alert('İndirilecek SQL bulunamadı.');
+      }
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      downloadTextFile(`supabase-structure-${stamp}.sql`, sql);
+    }
+
+    function toggleSSLEmail(checked) {
+      const wrap = document.getElementById('ssl-email-wrap');
+      if (wrap) wrap.style.display = checked ? '' : 'none';
+    }
+
+    function updateCompareRlsMode() {
+      const directionEl = document.getElementById('cmp-rls-sync-direction');
+      const recreateEl = document.getElementById('cmp-rls-recreate');
+      const helpEl = document.getElementById('cmp-rls-recreate-help');
+      if (!directionEl || !recreateEl || !helpEl) return;
+
+      const isDirectional = directionEl.value !== 'bidirectional';
+      recreateEl.disabled = !isDirectional;
+      if (!isDirectional) {
+        recreateEl.checked = false;
+      }
+
+      helpEl.textContent = isDirectional
+        ? 'Bu mod hedefteki ekstra policyleri kaldırabilir ve farklı tanımlı policyleri DROP/CREATE ile kaynağa göre hizalar.'
+        : 'Bu mod yalnızca yön seçildiğinde açılır. Hedefteki ekstra policyleri kaldırabilir ve farklı tanımlı policyleri yeniden oluşturabilir.';
+    }
+
+    function toggleCompareRlsOptions(checked) {
+      const wrap = document.getElementById('cmp-rls-options');
+      if (wrap) {
+        wrap.style.display = checked ? '' : 'none';
+      }
+
+      if (!checked) {
+        const directionEl = document.getElementById('cmp-rls-sync-direction');
+        const recreateEl = document.getElementById('cmp-rls-recreate');
+        if (directionEl) directionEl.value = 'bidirectional';
+        if (recreateEl) recreateEl.checked = false;
+      }
+
+      updateCompareRlsMode();
+    }
+
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        // kısa toast
+        const t = document.createElement('div');
+        t.textContent = '✓ Kopyalandı';
+        t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#22c55e;color:#fff;padding:.6rem 1.2rem;border-radius:8px;font-size:.85rem;font-weight:600;z-index:9999;animation:fadeIn .2s';
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 1800);
+      });
+    }
+
+    // ─── AYAR GÜNCELLEME FONKSİYONLARI ────────────────────────────
+    let settingsOriginal = null; // fetch edilen mevcut sunucu ayarları (diff için referans)
+
+    const SETTINGS_TEXT_FIELDS = {
+      'set-env-ADDITIONAL_REDIRECT_URLS': 'ADDITIONAL_REDIRECT_URLS',
+      'set-env-JWT_EXPIRY': 'JWT_EXPIRY',
+      'set-env-SMTP_HOST': 'SMTP_HOST',
+      'set-env-SMTP_PORT': 'SMTP_PORT',
+      'set-env-SMTP_USER': 'SMTP_USER',
+      'set-env-SMTP_PASS': 'SMTP_PASS',
+      'set-env-SMTP_SENDER_NAME': 'SMTP_SENDER_NAME',
+      'set-env-SMTP_ADMIN_EMAIL': 'SMTP_ADMIN_EMAIL',
+      'set-env-DASHBOARD_PASSWORD': 'DASHBOARD_PASSWORD',
+      'set-env-OPENAI_API_KEY': 'OPENAI_API_KEY',
+      'set-env-STUDIO_DEFAULT_ORGANIZATION': 'STUDIO_DEFAULT_ORGANIZATION',
+      'set-env-STUDIO_DEFAULT_PROJECT': 'STUDIO_DEFAULT_PROJECT'
+    };
+    // [env anahtarı, .env'de yokken geçerli varsayılan]
+    const SETTINGS_TOGGLE_FIELDS = {
+      'set-env-DISABLE_SIGNUP': ['DISABLE_SIGNUP', 'false'],
+      'set-env-ENABLE_EMAIL_SIGNUP': ['ENABLE_EMAIL_SIGNUP', 'true'],
+      'set-env-ENABLE_EMAIL_AUTOCONFIRM': ['ENABLE_EMAIL_AUTOCONFIRM', 'true'],
+      'set-env-ENABLE_ANONYMOUS_USERS': ['ENABLE_ANONYMOUS_USERS', 'false']
+    };
+
+    function settingsGoStep(n) {
+      document.querySelectorAll('#stepper-settings .step-item').forEach(el => {
+        const s = parseInt(el.dataset.step);
+        el.classList.toggle('active', s === n);
+        el.classList.toggle('done', s < n);
+      });
+      document.querySelectorAll('#settings-mode .step-panel').forEach(el => {
+        el.style.display = (el.id === 'settings-step' + n) ? 'block' : 'none';
+        el.classList.toggle('active', el.id === 'settings-step' + n);
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function populateSettingsForm(d) {
+      document.getElementById('set-studio-domain').value = d.studioDomain || '';
+      document.getElementById('set-api-domain').value = d.apiDomain || '';
+      document.getElementById('set-site-url').value = d.siteUrl || '';
+      for (const [id, key] of Object.entries(SETTINGS_TEXT_FIELDS)) {
+        document.getElementById(id).value = d.env[key] ?? '';
+      }
+      for (const [id, [key, dflt]] of Object.entries(SETTINGS_TOGGLE_FIELDS)) {
+        document.getElementById(id).checked = String(d.env[key] ?? dflt) === 'true';
+      }
+      document.getElementById('set-extra-env').value = '';
+      document.getElementById('set-get-ssl').checked = false;
+      document.getElementById('set-certbot-email-field').style.display = 'none';
+    }
+
+    async function fetchCurrentSettings() {
+      const host = document.getElementById('set-host').value.trim();
+      const pass = document.getElementById('set-pass').value;
+      const instance = document.getElementById('set-instance').value;
+      if (!host || !pass) return alert('Sunucu IP adresi ve root şifresi gerekli!');
+
+      const btn = document.getElementById('set-fetch-btn');
+      const status = document.getElementById('set-fetch-status');
+      btn.disabled = true;
+      btn.textContent = '⏳ Bağlanılıyor ve ayarlar okunuyor...';
+      status.textContent = '';
+      try {
+        const res = await fetch('/api/fetch-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ host, password: pass, targetInstance: instance })
+        });
+        const d = await res.json();
+        if (!d.success) {
+          status.innerHTML = '❌ ' + escapeHtml(d.error || 'Ayarlar okunamadı');
+          return;
+        }
+        settingsOriginal = {
+          env: d.env || {},
+          studioDomain: d.studioDomain || '',
+          apiDomain: d.apiDomain || '',
+          siteUrl: d.siteUrl || ''
+        };
+        populateSettingsForm(settingsOriginal);
+        const sslInfo = (d.sslDomains && d.sslDomains.length) ? ` · Let's Encrypt: ${escapeHtml(d.sslDomains.join(', '))}` : ' · Let\'s Encrypt sertifikası yok';
+        document.getElementById('set-current-info').innerHTML =
+          `<div>📡 <strong>${escapeHtml(host)}</strong> / Instans ${escapeHtml(instance)} — ${escapeHtml(d.envPath || '')} · ${(d.containers || []).length} Supabase container çalışıyor${sslInfo}<br>` +
+          `Aşağıdaki değerler sunucudan okundu. Yalnızca <strong>değiştirdiğiniz</strong> alanlar güncellenir ve etkilenen servisler yeniden başlatılır.</div>`;
+        settingsGoStep(2);
+      } catch (e) {
+        status.textContent = '❌ Hata: ' + e.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔌 Bağlan ve Mevcut Ayarları Getir';
+      }
+    }
+
+    function collectSettingsUpdates() {
+      const envUpdates = {};
+      const badLines = [];
+      for (const [id, key] of Object.entries(SETTINGS_TEXT_FIELDS)) {
+        const val = document.getElementById(id).value.trim();
+        const orig = String(settingsOriginal.env[key] ?? '');
+        // Studio şifresi yanlışlıkla silinirse boş şifre yazılmasın
+        if (key === 'DASHBOARD_PASSWORD' && !val) continue;
+        if (val !== orig) envUpdates[key] = val;
+      }
+      for (const [id, [key, dflt]] of Object.entries(SETTINGS_TOGGLE_FIELDS)) {
+        const val = document.getElementById(id).checked ? 'true' : 'false';
+        if (val !== String(settingsOriginal.env[key] ?? dflt)) envUpdates[key] = val;
+      }
+      document.getElementById('set-extra-env').value.split('\n').forEach(line => {
+        const t = line.trim();
+        if (!t || t.startsWith('#')) return;
+        const i = t.indexOf('=');
+        const key = i > 0 ? t.slice(0, i).trim() : '';
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) { badLines.push(t); return; }
+        envUpdates[key] = t.slice(i + 1).trim();
+      });
+      return { envUpdates, badLines };
+    }
+
+    async function startSettingsUpdate() {
+      if (!settingsOriginal) return alert('Önce sunucudan mevcut ayarları getirin (Adım 1).');
+      const host = document.getElementById('set-host').value.trim();
+      const pass = document.getElementById('set-pass').value;
+      const instance = document.getElementById('set-instance').value;
+      const studioDomain = document.getElementById('set-studio-domain').value.trim();
+      const apiDomain = document.getElementById('set-api-domain').value.trim();
+      const siteUrl = document.getElementById('set-site-url').value.trim();
+      const getSSL = document.getElementById('set-get-ssl').checked;
+      const certbotEmail = document.getElementById('set-certbot-email').value.trim();
+
+      if (!studioDomain || !apiDomain) return alert('Studio ve API domainleri boş bırakılamaz!');
+      if (getSSL && !certbotEmail) return alert('SSL için Let\'s Encrypt e-postası gerekli!');
+
+      const { envUpdates, badLines } = collectSettingsUpdates();
+      if (badLines.length) return alert('Geçersiz ek .env satırları (format: KEY=VALUE):\n\n' + badLines.join('\n'));
+
+      const domainChanged = studioDomain !== settingsOriginal.studioDomain || apiDomain !== settingsOriginal.apiDomain;
+      const siteUrlChanged = siteUrl !== (settingsOriginal.siteUrl || '');
+      if (!Object.keys(envUpdates).length && !domainChanged && !siteUrlChanged && !getSSL) {
+        return alert('Hiçbir değişiklik yapılmadı.');
+      }
+
+      const summary = [];
+      if (domainChanged) {
+        summary.push(`Studio domain: ${settingsOriginal.studioDomain || '(boş)'} → ${studioDomain}`);
+        summary.push(`API domain: ${settingsOriginal.apiDomain || '(boş)'} → ${apiDomain}`);
+      }
+      if (siteUrlChanged) summary.push(`Site URL: ${settingsOriginal.siteUrl || '(boş)'} → ${siteUrl || '(boş)'}`);
+      Object.keys(envUpdates).forEach(k => summary.push(`${k} güncellenecek`));
+      if (getSSL) summary.push("Let's Encrypt SSL sertifikası alınacak/yenilenecek");
+      if (!confirm('Şu değişiklikler uygulanacak:\n\n• ' + summary.join('\n• ') + '\n\n.env değişirse etkilenen servisler yeniden başlatılır (kısa kesinti olabilir). Devam edilsin mi?')) return;
+
+      settingsGoStep(3);
+
+      const logEl = document.getElementById('set-log-container');
+      logEl.innerHTML = '';
+      const bar = document.getElementById('set-progress-bar');
+      bar.style.width = '5%';
+      bar.style.background = '';
+      document.getElementById('set-success-box').style.display = 'none';
+
+      const addLog = (msg, type = 'log') => {
+        const line = document.createElement('span');
+        line.className = 'log-line ' + type;
+        line.textContent = msg;
+        logEl.appendChild(line);
+        logEl.appendChild(document.createElement('br'));
+        while (logEl.childNodes.length > 500) logEl.removeChild(logEl.firstChild);
+        logEl.scrollTop = logEl.scrollHeight;
+        if (type === 'step') bar.style.width = Math.min(parseInt(bar.style.width) + 22, 90) + '%';
+      };
+
+      const sSessionId = 'settings-' + Date.now();
+      const evtSource = new EventSource(`/api/logs/${sSessionId}`);
+      evtSource.onmessage = (e) => {
+        const d = JSON.parse(e.data);
+        if (d.type === 'done') {
+          evtSource.close();
+          bar.style.width = '100%';
+          bar.style.background = 'var(--success)';
+          document.getElementById('set-success-box').style.display = 'block';
+          document.getElementById('set-res-studio').textContent = 'https://' + (d.studioDomain || studioDomain);
+          document.getElementById('set-res-api').textContent = 'https://' + (d.apiDomain || apiDomain);
+          settingsOriginal = null; // sunucu durumu değişti; yeni düzenleme için tekrar fetch gerekir
+        } else if (d.type === 'error') {
+          evtSource.close();
+          bar.style.background = 'var(--danger)';
+          addLog(d.msg, 'error');
+        } else {
+          addLog(d.msg, d.type || 'log');
+        }
+      };
+
+      try {
+        await fetch('/api/update-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            host, password: pass, targetInstance: instance,
+            studioDomain, apiDomain, siteUrl,
+            getSSL, certbotEmail, envUpdates,
+            sessionId: sSessionId
+          })
+        });
+      } catch (err) {
+        addLog('İstek gönderilirken hata oluştu: ' + err.message, 'error');
+      }
+    }
+
+    // ─── SIFIRDAN KURULUM FONKSİYONLARI ───────────────────────────
+    async function genCleanSecrets() {
+      try {
+        const res = await fetch('/api/generate-secrets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const data = await res.json();
+        const s = data.secrets;
+        document.getElementById('clean-env-POSTGRES_PASSWORD').value = s.POSTGRES_PASSWORD;
+        document.getElementById('clean-env-JWT_SECRET').value = s.JWT_SECRET;
+        document.getElementById('clean-env-DASHBOARD_PASSWORD').value = s.DASHBOARD_PASSWORD;
+        document.getElementById('clean-env-SECRET_KEY_BASE').value = s.SECRET_KEY_BASE;
+        document.getElementById('clean-env-ANON_KEY').value = s.ANON_KEY;
+        document.getElementById('clean-env-SERVICE_ROLE_KEY').value = s.SERVICE_ROLE_KEY;
+        document.getElementById('clean-env-VAULT_ENC_KEY').value = s.VAULT_ENC_KEY;
+        document.getElementById('clean-env-PG_META_CRYPTO_KEY').value = s.PG_META_CRYPTO_KEY;
+      } catch(e) { console.error('genCleanSecrets', e); }
+    }
+
+    function cleanGoStep(n) {
+      if (n === 2) {
+        if (!document.getElementById('clean-target-host').value) return alert('Lütfen hedef sunucu IP adresini giriniz.');
+        if (!document.getElementById('clean-target-pass').value) return alert('Lütfen hedef sunucu root şifresini giriniz.');
+        if (!document.getElementById('clean-env-POSTGRES_PASSWORD').value) {
+           genCleanSecrets(); // generate on first navigation to step 2
+        }
+      }
+
+      document.querySelectorAll('#stepper-clean .step-item').forEach(el => {
+        const s = parseInt(el.dataset.step);
+        el.classList.toggle('active', s === n);
+        el.classList.toggle('done', s < n);
+      });
+
+      document.querySelectorAll('#clean-mode .step-panel').forEach(el => {
+        el.style.display = (el.id === 'clean-step' + n) ? 'block' : 'none';
+        el.classList.toggle('active', el.id === 'clean-step' + n);
+      });
+
+      if (n === 3) {
+        startCleanInstall();
+      }
+    }
+
+    async function startCleanInstall() {
+      const targetHost = document.getElementById('clean-target-host').value;
+      const targetPass = document.getElementById('clean-target-pass').value;
+      const studioDomain = document.getElementById('clean-studio-domain').value || targetHost;
+      const apiDomain = document.getElementById('clean-api-domain').value || targetHost;
+      const getSSL = document.getElementById('clean-get-ssl').checked;
+      
+      const env = {
+        POSTGRES_PASSWORD: document.getElementById('clean-env-POSTGRES_PASSWORD').value,
+        JWT_SECRET: document.getElementById('clean-env-JWT_SECRET').value,
+        DASHBOARD_PASSWORD: document.getElementById('clean-env-DASHBOARD_PASSWORD').value,
+        SECRET_KEY_BASE: document.getElementById('clean-env-SECRET_KEY_BASE').value,
+        ANON_KEY: document.getElementById('clean-env-ANON_KEY').value,
+        SERVICE_ROLE_KEY: document.getElementById('clean-env-SERVICE_ROLE_KEY').value,
+        VAULT_ENC_KEY: document.getElementById('clean-env-VAULT_ENC_KEY').value,
+        PG_META_CRYPTO_KEY: document.getElementById('clean-env-PG_META_CRYPTO_KEY').value
+      };
+
+      const logEl = document.getElementById('clean-log-container');
+      logEl.innerHTML = '';
+      const bar = document.getElementById('clean-progress-bar');
+      bar.style.width = '10%';
+      document.getElementById('clean-success-box').style.display = 'none';
+
+      const addLog = (msg, type = 'log') => {
+        const line = document.createElement('span');
+        line.className = 'log-line ' + type;
+        line.textContent = msg;
+        logEl.appendChild(line);
+        logEl.appendChild(document.createElement('br'));
+        while (logEl.childNodes.length > 500) logEl.removeChild(logEl.firstChild);
+        logEl.scrollTop = logEl.scrollHeight;
+        if (type === 'step') bar.style.width = Math.min(parseInt(bar.style.width) + 20, 90) + '%';
+      };
+
+      const cSessionId = 'clean-' + Date.now();
+      const evtSource = new EventSource(`/api/logs/${cSessionId}`);
+      evtSource.onmessage = async (e) => {
+        const d = JSON.parse(e.data);
+        if (d.type === 'done') {
+          evtSource.close();
+          bar.style.width = '100%';
+          bar.style.background = 'var(--success)';
+          document.getElementById('clean-success-box').style.display = 'block';
+          document.getElementById('clean-res-studio').textContent = d.studioDomain;
+          document.getElementById('clean-res-api').textContent = d.apiDomain;
+          document.getElementById('clean-res-pass').textContent = env.DASHBOARD_PASSWORD;
+        } else if (d.type === 'error') {
+          evtSource.close();
+          bar.style.background = 'var(--danger)';
+          addLog(d.msg, 'error');
+        } else {
+          addLog(d.msg, d.type || 'log');
+        }
+      };
+
+      try {
+        const tgtInstance = document.getElementById('clean-target-instance') ? document.getElementById('clean-target-instance').value : '1';
+        await fetch('/api/clean-install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetHost, targetPass, studioDomain, apiDomain, siteUrl: 'https://' + studioDomain,
+            env, sessionId: cSessionId, getSSL, targetInstance: tgtInstance
+          })
+        });
+      } catch (err) {
+        addLog('İstek gönderilirken hata oluştu: ' + err.message, 'error');
+      }
+    }
+
+    // ─── CLOUD'DAN SELF-HOST'A TAŞIMA FONKSİYONLARI ───────────────────
+    async function genCloudSecrets() {
+      try {
+        const res = await fetch('/api/generate-secrets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const data = await res.json();
+        const s = data.secrets;
+        document.getElementById('cloud-postgres-password').value = s.POSTGRES_PASSWORD;
+        // Don't overwrite JWT_SECRET automatically if user might want to copy it
+        if (!document.getElementById('cloud-jwt-secret').value) {
+          document.getElementById('cloud-jwt-secret').value = s.JWT_SECRET;
+        }
+        document.getElementById('cloud-dashboard-password').value = s.DASHBOARD_PASSWORD;
+        document.getElementById('cloud-anon-key').value = s.ANON_KEY;
+        document.getElementById('cloud-service-key').value = s.SERVICE_ROLE_KEY;
+        // Store remaining securely to memory so we pass it when migrating
+        envData.cloudSecrets = s;
+      } catch(e) { console.error('genCloudSecrets', e); }
+    }
+
+    function cloudGoStep(n) {
+      if (n === 2) {
+        if (!document.getElementById('cloud-db-url').value) return alert('Lütfen Cloud PostgreSQL bağlantı URL adresini giriniz.');
+      }
+      if (n === 3) {
+        if (!document.getElementById('cloud-target-host').value) return alert('Lütfen hedef sunucu IP adresini giriniz.');
+        if (!document.getElementById('cloud-target-pass').value) return alert('Lütfen hedef sunucu root şifresini giriniz.');
+        
+        const skipInstall = document.getElementById('cloud-skip-install').checked;
+        document.getElementById('cloud-step3-inputs').style.display = skipInstall ? 'none' : 'grid';
+        document.getElementById('cloud-skip-install-msg').style.display = skipInstall ? 'flex' : 'none';
+        document.getElementById('btn-cloud-gen-secrets').style.display = skipInstall ? 'none' : 'inline-block';
+
+        if (!document.getElementById('cloud-postgres-password').value && !skipInstall) {
+           genCloudSecrets(); // generate on first navigation to step 3
+        }
+      }
+
+      if (n === 4) {
+        const skipInstall = document.getElementById('cloud-skip-install').checked;
+        if (!skipInstall) {
+          if (!document.getElementById('cloud-api-domain').value || !document.getElementById('cloud-studio-domain').value) {
+            return alert('API ve Studio Domain değerleri gereklidir.');
+          }
+        }
+      }
+
+      document.querySelectorAll('#stepper-cloud .step-item').forEach(el => {
+        const s = parseInt(el.dataset.step);
+        el.classList.toggle('active', s === n);
+        el.classList.toggle('done', s < n);
+      });
+
+      document.querySelectorAll('#cloud-mode .step-panel').forEach(el => {
+        el.style.display = (el.id === 'cloud-step' + n) ? 'block' : 'none';
+        el.classList.toggle('active', el.id === 'cloud-step' + n);
+      });
+    }
+
+    async function startCloudMigration() {
+      const cloudUrl = document.getElementById('cloud-db-url').value.trim();
+      const targetHost = document.getElementById('cloud-target-host').value.trim();
+      const targetPass = document.getElementById('cloud-target-pass').value;
+      const apiDomain = document.getElementById('cloud-api-domain').value.trim();
+      const studioDomain = document.getElementById('cloud-studio-domain').value.trim();
+      const getSSL = document.getElementById('cloud-get-ssl').checked;
+      const certbotEmail = document.getElementById('cloud-certbot-email').value.trim();
+      const skipInstall = document.getElementById('cloud-skip-install').checked;
+      
+      const migrateStorage = document.getElementById('cloud-migrate-storage').checked;
+      const cloudApiUrl = document.getElementById('cloud-api-url').value.trim();
+      const cloudServiceKey = document.getElementById('cloud-service-key-input').value.trim();
+
+      if (!skipInstall && (!apiDomain || !studioDomain)) {
+        return alert("Lütfen API ve Studio domainlerini giriniz!");
+      }
+      
+      if (migrateStorage && (!cloudApiUrl || !cloudServiceKey)) {
+        return alert("Storage taşıma için Cloud API URL ve Service Role Key gereklidir!");
+      }
+
+      cloudGoStep(4);
+
+      let env = {};
+      const s = envData.cloudSecrets || {};
+      if (!skipInstall) {
+        env = {
+          POSTGRES_PASSWORD: document.getElementById('cloud-postgres-password').value,
+          JWT_SECRET: document.getElementById('cloud-jwt-secret').value || s.JWT_SECRET,
+          DASHBOARD_PASSWORD: document.getElementById('cloud-dashboard-password').value,
+          SECRET_KEY_BASE: s.SECRET_KEY_BASE,
+          ANON_KEY: document.getElementById('cloud-anon-key').value || s.ANON_KEY,
+          SERVICE_ROLE_KEY: document.getElementById('cloud-service-key').value || s.SERVICE_ROLE_KEY,
+          VAULT_ENC_KEY: s.VAULT_ENC_KEY,
+          PG_META_CRYPTO_KEY: s.PG_META_CRYPTO_KEY
+        };
+      }
+
+      const logEl = document.getElementById('cloud-log-container');
+      logEl.innerHTML = '';
+      const bar = document.getElementById('cloud-progress-bar');
+      bar.style.width = '10%';
+      document.getElementById('cloud-success-box').style.display = 'none';
+
+      const addLog = (msg, type = 'log') => {
+        const line = document.createElement('span');
+        line.className = 'log-line ' + type;
+        line.textContent = msg;
+        logEl.appendChild(line);
+        logEl.appendChild(document.createElement('br'));
+        while (logEl.childNodes.length > 500) logEl.removeChild(logEl.firstChild);
+        logEl.scrollTop = logEl.scrollHeight;
+        if (type === 'step') bar.style.width = Math.min(parseInt(bar.style.width) + 15, 90) + '%';
+      };
+
+      const cSessionId = 'cloud-' + Date.now();
+      const evtSource = new EventSource(`/api/logs/${cSessionId}`);
+      evtSource.onmessage = async (e) => {
+        const d = JSON.parse(e.data);
+        if (d.type === 'done') {
+          evtSource.close();
+          bar.style.width = '100%';
+          bar.style.background = 'var(--success)';
+          document.getElementById('cloud-success-box').style.display = 'block';
+          
+          if (skipInstall) {
+            document.querySelector('#cloud-success-box .card-title').textContent = '✅ Veri Taşıma Başarıyla Tamamlandı!';
+            document.querySelector('#cloud-success-box .cred-table').style.display = 'none';
+          } else {
+            document.querySelector('#cloud-success-box .card-title').textContent = '✅ Taşıma ve Kurulum Tamamlandı!';
+            document.querySelector('#cloud-success-box .cred-table').style.display = 'table';
+            document.getElementById('cloud-res-studio').textContent = d.studioDomain;
+            document.getElementById('cloud-res-api').textContent = d.apiDomain;
+            document.getElementById('cloud-res-pass').textContent = env.DASHBOARD_PASSWORD;
+          }
+        } else if (d.type === 'error') {
+          evtSource.close();
+          bar.style.background = 'var(--danger)';
+          addLog(d.msg, 'error');
+        } else {
+          addLog(d.msg, d.type || 'log');
+        }
+      };
+
+      try {
+        const tgtInstance = document.getElementById('cloud-target-instance') ? document.getElementById('cloud-target-instance').value : '1';
+        await fetch('/api/migrate-from-cloud', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cloudUrl, targetHost, targetPass, apiDomain, studioDomain,
+            env, getSSL, certbotEmail, sessionId: cSessionId, skipInstall,
+            migrateStorage, cloudApiUrl, cloudServiceKey, targetInstance: tgtInstance
+          })
+        });
+      } catch (err) {
+        addLog('İstek gönderilirken hata oluştu: ' + err.message, 'error');
+      }
+    }
+
+    // ─── SUPABASE KURULUM MODALI ──────────────────────────────────
+    function showInstallModal() {
+      document.getElementById('install-modal').style.display = 'flex';
+      document.getElementById('install-log').innerHTML = '';
+      document.getElementById('install-status-badge').textContent = '';
+    }
+
+    function closeInstallModal() {
+      document.getElementById('install-modal').style.display = 'none';
+    }
+
+    async function installSupabase() {
+      const host = document.getElementById('src-host').value.trim();
+      const password = document.getElementById('src-pass').value;
+      const continueOnMinorErrors = document.getElementById('continue-on-minor-errors')?.checked || false;
+      const tgtInstance = document.getElementById('tgt-instance') ? document.getElementById('tgt-instance').value : '1';
+      const btn = document.getElementById('btn-install');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Kuruluyor...';
+
+      const logEl = document.getElementById('install-log');
+      const badge = document.getElementById('install-status-badge');
+      logEl.innerHTML = '';
+
+      const addLog = (msg, type = 'log') => {
+        const line = document.createElement('span');
+        line.className = 'log-line ' + type;
+        line.textContent = msg;
+        logEl.appendChild(line);
+        logEl.appendChild(document.createElement('br'));
+        while (logEl.childNodes.length > 500) logEl.removeChild(logEl.firstChild);
+        logEl.scrollTop = logEl.scrollHeight;
+      };
+
+      const installSessionId = 'install-' + Date.now();
+      const evtSource = new EventSource(`/api/logs/${installSessionId}`);
+      evtSource.onmessage = async (e) => {
+        const d = JSON.parse(e.data);
+        if (d.type === 'done') {
+          evtSource.close();
+          badge.textContent = '✅ Kurulum tamamlandı!';
+          badge.style.color = 'var(--success)';
+          btn.innerHTML = '🔄 .env\'leri Yükle';
+          btn.disabled = false;
+          btn.onclick = async () => {
+            closeInstallModal();
+            await connectSource();
+          };
+        } else if (d.type === 'error') {
+          evtSource.close();
+          badge.textContent = '❌ Hata: ' + d.msg;
+          badge.style.color = 'var(--danger)';
+          btn.innerHTML = '🔄 Tekrar Dene';
+          btn.disabled = false;
+          btn.onclick = installSupabase;
+          addLog(d.msg, 'error');
+        } else {
+          addLog(d.msg, d.type || 'log');
+        }
+      };
+
+      await fetch('/api/install-supabase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host, password, sessionId: installSessionId, continueOnMinorErrors, targetInstance: tgtInstance })
+      });
+    }
+
+    toggleCompareRlsOptions(Boolean(document.getElementById('cmp-include-rls')?.checked));
+  </script>
+  <style>
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+  </style>
+
+  <!-- ═══ SUPABASE KURULUM MODALI ═══ -->
+  <div id="install-modal"
+    style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;align-items:center;justify-content:center;padding:1rem">
+    <div
+      style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:640px;padding:2rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem">
+        <div style="display:flex;align-items:center;gap:.7rem">
+          <div
+            style="width:36px;height:36px;background:rgba(245,158,11,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem">
+            ⚙️</div>
+          <div>
+            <div style="font-size:1.05rem;font-weight:600">Supabase Kurulumu</div>
+            <div style="font-size:.8rem;color:var(--muted)">Sunucuya Docker + Supabase (self-hosted) kurulacak</div>
+          </div>
+        </div>
+        <button onclick="closeInstallModal()"
+          style="background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;line-height:1">×</button>
+      </div>
+      <div class="alert alert-warn" style="margin-bottom:1rem">
+        ⚠️ Bu sunucuda <strong>.env dosyası bulunamadı</strong>. Supabase kurulu değil veya farklı bir dizinde olabilir.
+        Aşağıdaki butona tıklayarak otomatik kurulum başlatabilirsiniz.
+      </div>
+      <div id="install-log"
+        style="background:#050810;border:1px solid var(--border);border-radius:10px;height:260px;overflow-y:auto;padding:.8rem;font-family:'JetBrains Mono',monospace;font-size:.78rem;line-height:1.7;margin-bottom:1rem">
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem">
+        <span id="install-status-badge" style="font-size:.85rem;font-weight:600"></span>
+        <div style="display:flex;gap:.8rem">
+          <button class="btn btn-secondary" onclick="closeInstallModal()">İptal</button>
+          <button class="btn btn-primary" id="btn-install" onclick="installSupabase()">⚙️ Supabase'i Kur</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function startComparison(sourceMode = 'cloud') {
+      document.getElementById('compare-modal').style.display = 'flex';
+      document.getElementById('compare-loading').style.display = 'flex';
+      document.getElementById('verify-compare-results').style.display = 'none';
+
+      let payload = { source: {}, target: {} };
+      
+      if (sourceMode === 'verify') {
+        const srcType = document.querySelector('input[name="verify-src-type"]:checked').value;
+        const tgtType = document.querySelector('input[name="verify-tgt-type"]:checked').value;
+        
+        payload.source.type = srcType;
+        if (srcType === 'url') payload.source.url = document.getElementById('verify-src-url')?.value;
+        if (srcType === 'ssh') {
+          payload.source.host = document.getElementById('verify-src-ip')?.value;
+          payload.source.pass = document.getElementById('verify-src-pass')?.value;
+        }
+
+        payload.target.type = tgtType;
+        if (tgtType === 'url') payload.target.url = document.getElementById('verify-tgt-url')?.value;
+        if (tgtType === 'ssh') {
+          payload.target.host = document.getElementById('verify-tgt-ip')?.value;
+          payload.target.pass = document.getElementById('verify-tgt-pass')?.value;
+          payload.target.instance = document.getElementById('verify-tgt-instance')?.value || '1';
+        }
+      } else {
+        // Fallback for cloud step 4 button click
+        payload.source = { type: 'url', url: document.getElementById('cloud-db-url')?.value };
+        payload.target = { type: 'ssh', host: document.getElementById('cloud-target-host')?.value, pass: document.getElementById('cloud-target-pass')?.value };
+      }
+
+      // Basic validation
+      const validate = (obj) => obj.type === 'url' ? !!obj.url : (!!obj.host && !!obj.pass);
+      if (!validate(payload.source) || !validate(payload.target)) {
+        alert('Lütfen seçtiğiniz tüm zorunlu alanları doldurun.');
+        document.getElementById('compare-modal').style.display = 'none';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/compare-db', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        
+        if (data.error) {
+          alert('Hata: ' + data.error);
+          document.getElementById('compare-modal').style.display = 'none';
+          return;
+        }
+
+        renderComparison(data);
+        
+        document.getElementById('compare-loading').style.display = 'none';
+        document.getElementById('verify-compare-results').style.display = 'block';
+      } catch (err) {
+        alert('Bağlantı koptu veya sunucu yanıt vermedi: ' + err.message);
+        document.getElementById('compare-modal').style.display = 'none';
+      }
+    }
+
+    function renderComparison(data) {
+      const { cloud, target } = data;
+      
+      // 1. Tablolar
+      const tablesBody = document.getElementById('compare-tables-body');
+      tablesBody.innerHTML = '';
+      
+      const allTables = new Set([...Object.keys(cloud.counts), ...Object.keys(target.counts)]);
+      const tablesArr = Array.from(allTables).sort();
+      
+      let hasMissingData = false;
+
+      tablesArr.forEach(table => {
+        const cVal = cloud.counts[table] !== undefined ? cloud.counts[table] : 0;
+        const tVal = target.counts[table] !== undefined ? target.counts[table] : 0;
+        
+        const isCError = typeof cVal === 'object' && cVal !== null && cVal.error;
+        const isTError = typeof tVal === 'object' && tVal !== null && tVal.error;
+        const cCount = isCError ? -1 : cVal;
+        const tCount = isTError ? -1 : tVal;
+        
+        let statusHtml = '';
+        let diffHtml = '';
+        
+        const formatErr = err => err ? err.replace(/"/g, '&quot;') : 'Okuma Hatası';
+        
+        let cText = isCError ? `<span style="color:var(--danger); cursor:help;" title="${formatErr(cVal.error)}">Hata (Üzerine Gel)</span>` : cCount.toLocaleString();
+        let tText = isTError ? `<span style="color:var(--danger); cursor:help;" title="${formatErr(tVal.error)}">Hata (Üzerine Gel)</span>` : tCount.toLocaleString();
+
+        if (isCError || isTError) {
+            statusHtml = '<span class="badge" style="background:rgba(239,68,68,.15); color:var(--danger);">⚠️ Okunamadı</span>';
+            diffHtml = '-';
+            hasMissingData = true;
+        } else {
+            const diff = cCount - tCount;
+            if (diff === 0) {
+                statusHtml = '<span class="badge" style="background:rgba(34,197,94,.15); color:var(--success);">✅ Eşit</span>';
+                diffHtml = '0';
+            } else if (diff > 0) {
+                statusHtml = '<span class="badge" style="background:rgba(239,68,68,.15); color:var(--danger);">⚠️ Eksik</span>';
+                diffHtml = '<span style="color:var(--danger)">+' + diff.toLocaleString() + '</span>';
+                hasMissingData = true;
+            } else {
+                statusHtml = '<span class="badge" style="background:rgba(245,158,11,.15); color:var(--accent3);">Fazla</span>';
+                diffHtml = '<span style="color:var(--accent3)">' + diff.toLocaleString() + '</span>';
+            }
+        }
+        
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border)';
+        tr.innerHTML = `
+          <td style="padding:0.75rem 0.5rem; color:var(--text); font-weight:500;">${table}</td>
+          <td style="padding:0.75rem 0.5rem; color:var(--muted);">${cText}</td>
+          <td style="padding:0.75rem 0.5rem; color:var(--muted);">${tText}</td>
+          <td style="padding:0.75rem 0.5rem; font-weight:600;">${diffHtml}</td>
+          <td style="padding:0.75rem 0.5rem;">${statusHtml}</td>
+        `;
+        tablesBody.appendChild(tr);
+      });
+
+      // 2. Storage
+      const storageBody = document.getElementById('compare-storage-body');
+      storageBody.innerHTML = '';
+      
+      const allBuckets = new Set([...Object.keys(cloud.storage), ...Object.keys(target.storage)]);
+      
+      Array.from(allBuckets).sort().forEach(bucket => {
+        const cStorage = cloud.storage[bucket] || { count: 0, size: 0 };
+        const tStorage = target.storage[bucket] || { count: 0, size: 0 };
+        
+        const countDiff = cStorage.count - tStorage.count;
+        const sizeDiff = cStorage.size - tStorage.size;
+        
+        let statusHtml = '<span class="badge" style="background:rgba(34,197,94,.15); color:var(--success);">✅ Eşit</span>';
+        if (countDiff !== 0 || sizeDiff !== 0) {
+           statusHtml = '<span class="badge" style="background:rgba(239,68,68,.15); color:var(--danger);">⚠️ Eksik</span>';
+           hasMissingData = true;
+        }
+        
+        const formatBytes = (bytes) => {
+            if (bytes === 0) return '0 B';
+            const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border)';
+        tr.innerHTML = `
+          <td style="padding:0.75rem 0.5rem; color:var(--text); font-weight:500;">${bucket}</td>
+          <td style="padding:0.75rem 0.5rem; color:var(--muted);">${cStorage.count} dosya<br/><span style="font-size:0.75rem">${formatBytes(cStorage.size)}</span></td>
+          <td style="padding:0.75rem 0.5rem; color:var(--muted);">${tStorage.count} dosya<br/><span style="font-size:0.75rem">${formatBytes(tStorage.size)}</span></td>
+          <td style="padding:0.75rem 0.5rem;">${statusHtml}</td>
+        `;
+        storageBody.appendChild(tr);
+      });
+
+      document.getElementById('compare-warning').style.display = hasMissingData ? 'block' : 'none';
+    }
+  </script>
+</body>
+
+</html>
