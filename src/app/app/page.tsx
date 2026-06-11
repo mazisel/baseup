@@ -128,7 +128,7 @@ async function RecentJobs({ jobsPromise, locale, copy }: any) {
         </div>
       ) : (
         <div className="table-list">
-          {jobs.map((job: any) => (
+          {jobs.slice(0, 10).map((job: any) => (
             <Link className="table-row" href={`/app/jobs/${job.id}`} key={job.id}>
               <div>
                 <strong>{job.title}</strong>
