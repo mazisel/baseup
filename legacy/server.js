@@ -403,17 +403,17 @@ emit() { printf 'PREFLIGHT|%s|%s\\n' "$1" "$2"; }
 FREE_KB=$(df -Pk / 2>/dev/null | awk 'NR==2 {print $4}')
 FREE_GB=$((FREE_KB / 1024 / 1024))
 if [ "$FREE_GB" -ge ${TARGET_MIN_FREE_DISK_GB} ]; then
-  emit PASS "Hedef disk alanı yeterli: ${FREE_GB}GB boş"
+  emit PASS "Hedef disk alanı yeterli: \${FREE_GB}GB boş"
 else
-  emit FAIL "Hedefte yeterli disk alanı yok: ${FREE_GB}GB boş (en az ${TARGET_MIN_FREE_DISK_GB}GB önerilir)"
+  emit FAIL "Hedefte yeterli disk alanı yok: \${FREE_GB}GB boş (en az ${TARGET_MIN_FREE_DISK_GB}GB önerilir)"
 fi
 
 MEM_KB=$(awk '/MemTotal/ {print $2}' /proc/meminfo 2>/dev/null)
 MEM_GB=$((MEM_KB / 1024 / 1024))
 if [ "$MEM_GB" -ge ${TARGET_MIN_RAM_GB} ]; then
-  emit PASS "Hedef RAM yeterli: ${MEM_GB}GB"
+  emit PASS "Hedef RAM yeterli: \${MEM_GB}GB"
 else
-  emit FAIL "Hedefte yeterli RAM yok: ${MEM_GB}GB (en az ${TARGET_MIN_RAM_GB}GB önerilir)"
+  emit FAIL "Hedefte yeterli RAM yok: \${MEM_GB}GB (en az ${TARGET_MIN_RAM_GB}GB önerilir)"
 fi
 
 if command -v docker >/dev/null 2>&1; then
@@ -436,7 +436,7 @@ done
 if [ -z "$BUSY_PORTS" ]; then
   emit PASS "Hedefte Supabase için gerekli instance portları boş"
 else
-  emit FAIL "Hedefte gerekli portlar dolu:$BUSY_PORTS"
+  emit FAIL "Hedefte gerekli portlar dolu:\$BUSY_PORTS"
 fi
 
 if [ -f ${shellEscape(`${tgtDir}/docker/docker-compose.yml`)} ]; then
