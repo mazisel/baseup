@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
+import { getCopy } from "@/lib/i18n";
+import { getClientLocale } from "@/lib/preference-shared";
 
 export default function AdminError({
   error,
@@ -10,6 +12,8 @@ export default function AdminError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const copy = getCopy(getClientLocale()).errors;
+
   useEffect(() => {
     console.error("Admin boundary caught error:", error);
   }, [error]);
@@ -18,13 +22,13 @@ export default function AdminError({
     <div className="page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "50vh" }}>
       <div className="panel" style={{ textAlign: "center", maxWidth: 400 }}>
         <AlertCircle size={48} style={{ color: "var(--error, #e53e3e)", margin: "0 auto 16px" }} />
-        <h2 style={{ marginBottom: 8 }}>Bir Sorun Oluştu</h2>
+        <h2 style={{ marginBottom: 8 }}>{copy.title}</h2>
         <p className="muted" style={{ marginBottom: 24 }}>
-          Yönetim sayfası yüklenirken beklenmedik bir hata meydana geldi. {error.message}
+          {copy.description} {error.message}
         </p>
         <button className="button primary" onClick={() => reset()}>
           <RefreshCw size={16} />
-          Tekrar Dene
+          {copy.retry}
         </button>
       </div>
     </div>

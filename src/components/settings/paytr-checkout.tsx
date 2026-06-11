@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Script from "next/script";
 import { formatMoney } from "@/lib/money";
+import { getCopy } from "@/lib/i18n";
+import type { Locale } from "@/lib/preference-shared";
 
 type DiscountInfo = {
   originalPrice: number;
@@ -11,7 +13,8 @@ type DiscountInfo = {
   currency: string;
 };
 
-export function PaytrCheckout({ packageId }: { packageId: string }) {
+export function PaytrCheckout({ packageId, locale }: { packageId: string; locale: Locale }) {
+  const copy = getCopy(locale).checkout;
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,7 +27,7 @@ export function PaytrCheckout({ packageId }: { packageId: string }) {
     if (!couponCode.trim()) return;
     setCouponLoading(true);
     setCouponError("");
-    
+
     try {
       const res = await fetch("/api/billing/coupon/validate", {
         method: "POST",
@@ -32,15 +35,15 @@ export function PaytrCheckout({ packageId }: { packageId: string }) {
         body: JSON.stringify({ code: couponCode.trim(), packageId })
       });
       const data = await res.json();
-      
+
       if (res.ok && data.valid) {
         setDiscountInfo(data);
       } else {
-        setCouponError(data.error || "Geçersiz kupon");
+        setCouponError(data.error || copy.invalidCoupon);
         setDiscountInfo(null);
       }
     } catch {
-      setCouponError("Bağlantı hatası");
+      setCouponError(copy.connectionError);
     } finally {
       setCouponLoading(false);
     }
@@ -56,16 +59,16 @@ export function PaytrCheckout({ packageId }: { packageId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ packageId, couponCode: discountInfo ? couponCode.trim() : null })
       });
-      
+
       const data = await response.json();
-      
+
       if (response.ok && data.token) {
         setToken(data.token);
       } else {
-        setError(data.error || "Failed to initialize payment");
+        setError(data.error || copy.startFailed);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Network error");
+      setError(err instanceof Error ? err.message : copy.connectionError);
     } finally {
       setLoading(false);
     }
@@ -74,8 +77,8 @@ export function PaytrCheckout({ packageId }: { packageId: string }) {
   if (error) {
     return (
       <div className="panel">
-        <p className="notice" style={{ backgroundColor: "var(--error-bg, #fde8e8)", color: "var(--error-text, #c53030)" }}>Ödeme başlatılamadı: {error}</p>
-        <button className="button" onClick={() => setError("")}>Geri Dön</button>
+        <p className="notice" style={{ backgroundColor: "var(--error-bg, #fde8e8)", color: "var(--error-text, #c53030)" }}>{copy.startFailed}: {error}</p>
+        <button className="button" onClick={() => setError("")}>{copy.goBack}</button>
       </div>
     );
   }
@@ -102,24 +105,24 @@ export function PaytrCheckout({ packageId }: { packageId: string }) {
 
   return (
     <div className="panel" style={{ maxWidth: 500, margin: "0 auto" }}>
-      <h2>Sipariş Özeti</h2>
-      
+      <h2>{copy.orderSummary}</h2>
+
       <div style={{ marginTop: 24, marginBottom: 24, padding: 16, background: "var(--bg-subtle)", borderRadius: 8 }}>
         <div className="field">
-          <label>İndirim Kodu</label>
+          <label>{copy.couponLabel}</label>
           <div style={{ display: "flex", gap: 8 }}>
-            <input 
-              type="text" 
-              placeholder="Varsa kupon kodunuzu girin" 
-              value={couponCode} 
+            <input
+              type="text"
+              placeholder={copy.couponPlaceholder}
+              value={couponCode}
               onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
               disabled={couponLoading || discountInfo !== null}
             />
             {discountInfo ? (
-              <button className="button ghost" onClick={() => { setDiscountInfo(null); setCouponCode(""); }}>İptal</button>
+              <button className="button ghost" onClick={() => { setDiscountInfo(null); setCouponCode(""); }}>{copy.cancel}</button>
             ) : (
               <button className="button" onClick={applyCoupon} disabled={couponLoading || !couponCode.trim()}>
-                {couponLoading ? "Kontrol ediliyor..." : "Uygula"}
+                {couponLoading ? copy.checking : copy.apply}
               </button>
             )}
           </div>
@@ -129,15 +132,15 @@ export function PaytrCheckout({ packageId }: { packageId: string }) {
         {discountInfo && (
           <div style={{ marginTop: 16, padding: 12, borderTop: "1px dashed var(--border)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <span>Orijinal Tutar:</span>
+              <span>{copy.originalAmount}</span>
               <span style={{ textDecoration: "line-through" }}>{formatMoney(discountInfo.originalPrice, discountInfo.currency)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, color: "var(--success, #006600)" }}>
-              <span>İndirim:</span>
+              <span>{copy.discount}</span>
               <span>- {formatMoney(discountInfo.discountAmount, discountInfo.currency)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold", fontSize: 18, marginTop: 12, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
-              <span>Ödenecek Tutar:</span>
+              <span>{copy.amountDue}</span>
               <span>{formatMoney(discountInfo.finalPrice, discountInfo.currency)}</span>
             </div>
           </div>
@@ -145,7 +148,7 @@ export function PaytrCheckout({ packageId }: { packageId: string }) {
       </div>
 
       <button className="button primary" style={{ width: "100%", height: 48, fontSize: 16 }} onClick={startPayment} disabled={loading}>
-        {loading ? "Ödeme Sayfası Hazırlanıyor..." : "Güvenli Ödemeye Geç (PayTR)"}
+        {loading ? copy.preparing : copy.proceed}
       </button>
     </div>
   );
