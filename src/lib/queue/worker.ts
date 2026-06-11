@@ -58,14 +58,14 @@ export function startWorker() {
 
         await supabase.from("job_runs").update({ status: "running", started_at: new Date().toISOString() }).eq("id", jobId);
 
-        if (RUNNER_MODE === "legacy") {
-          // Eğer legacy özellikle seçildiyse Legacy Bridge çalıştır.
+        if (RUNNER_MODE === "dry-run") {
+          // Güvenli mod: müşteri sunucusuna bağlanmadan akışı simüle et.
+          await runDryRunJob(jobId, inputs as JobRequestInput, log);
+        } else {
+          // Execute actual work via Legacy Bridge
           await runLegacyBridgeJob(jobId, inputs as JobRequestInput, async (id, level, message) => {
             await log(level, message);
           });
-        } else {
-          // Varsayılan olarak native (simülasyon / dry-run) kullan.
-          await runDryRunJob(jobId, inputs as JobRequestInput, log);
         }
 
         await log("success", "Tüm işlemler başarıyla tamamlandı");

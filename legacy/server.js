@@ -4864,18 +4864,18 @@ app.post('/api/ai-seed', async (req, res) => {
       
       if (!aiResponse.ok) {
          const errText = await aiResponse.text();
-         throw new Error(\`fal.ai API Hatası (\${aiResponse.status}): \${errText}\`);
+         throw new Error(`fal.ai API Hatası (${aiResponse.status}): ${errText}`);
       }
       
       const aiData = await aiResponse.json();
       let sqlQuery = aiData.choices[0].message.content.trim();
-      if (sqlQuery.startsWith('\`\`\`sql')) {
-         sqlQuery = sqlQuery.replace(/^\`\`\`sql/, '').replace(/\`\`\`$/, '').trim();
+      if (sqlQuery.startsWith('```sql')) {
+         sqlQuery = sqlQuery.replace(/^```sql/, '').replace(/```$/, '').trim();
       }
       
       step('Üretilen SQL hedef veritabanına uygulanıyor');
       const b64Sql = Buffer.from(sqlQuery, 'utf8').toString('base64');
-      const code = await sshExecStream(targetHost, targetPass, \`echo '\${b64Sql}' | base64 -d > /tmp/seed.sql && docker exec -i supabase-\${targetInstance || '1'}-db psql -U supabase_admin postgres < /tmp/seed.sql\`, sessionId, { stepLabel: 'SQL Insert' });
+      const code = await sshExecStream(targetHost, targetPass, `echo '${b64Sql}' | base64 -d > /tmp/seed.sql && docker exec -i supabase-${targetInstance || '1'}-db psql -U supabase_admin postgres < /tmp/seed.sql`, sessionId, { stepLabel: 'SQL Insert' });
       
       log('\n✅ AI Veri üretimi başarıyla tamamlandı!', 'success');
       const clients = sseClients.get(sessionId) || [];
