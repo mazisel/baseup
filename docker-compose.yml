@@ -1,15 +1,10 @@
 version: '3.8'
 services:
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        # NEXT_PUBLIC_* build sırasında bundle'a gömülür (bkz. Dockerfile)
-        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
-        - NEXT_PUBLIC_FROM_EMAIL=${NEXT_PUBLIC_FROM_EMAIL:-SupaOps <noreply@supaops.com>}
+    # İmajlar GitHub Actions'ta build edilip GHCR'a pushlanır
+    # (.github/workflows/build-images.yml). NEXT_PUBLIC_* değerleri
+    # oradaki build sırasında gömülür — repo Variables'tan tanımlanır.
+    image: ghcr.io/mazisel/baseup-web:latest
     ports:
       # Host portu doluysa (örn. Supabase Studio 3000 kullanır) WEB_PORT ile değiştirin
       - "${WEB_PORT:-3000}:3000"
@@ -35,9 +30,7 @@ services:
     restart: unless-stopped
 
   legacy:
-    build:
-      context: ./legacy
-      dockerfile: Dockerfile
+    image: ghcr.io/mazisel/baseup-legacy:latest
     # GÜVENLİK: Bu API auth içermez ve müşteri sunucularında root SSH
     # komutları çalıştırır. Port bilinçli olarak publish EDİLMİYOR —
     # yalnızca compose iç ağından (http://legacy:4567) erişilir.
