@@ -131,8 +131,8 @@ async function RecentJobs({ jobsPromise, locale, copy }: any) {
           {jobs.slice(0, 10).map((job: any) => (
             <Link className="table-row" href={`/app/jobs/${job.id}`} key={job.id}>
               <div>
-                <strong>{job.title}</strong>
-                <div className="muted">{new Date(job.createdAt).toLocaleString(locale === "tr" ? "tr-TR" : "en-US")}</div>
+                <strong>{job.type ? (getModules(locale).find((m: any) => m.id === job.type)?.title || job.title) : job.title}</strong>
+                <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{new Date(job.createdAt).toLocaleString(locale === "tr" ? "tr-TR" : "en-US")}</div>
               </div>
               <StatusBadge locale={locale} status={job.status} />
               <span className="muted">{job.summary?.target || job.summary?.source || copy.dashboard.sanitizedJob}</span>

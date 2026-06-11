@@ -5,6 +5,7 @@ import { RotateCcw } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { getCopy } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
+import { getModules } from "@/lib/constants";
 import type { Locale } from "@/lib/preference-shared";
 import type { JobRun } from "@/types/domain";
 
@@ -98,7 +99,9 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
           <div className="meta-row" style={{ marginBottom: 8 }}>
             <StatusBadge locale={locale} status={job.status} />
           </div>
-          <h1 style={{ fontSize: 36 }}>{job.title}</h1>
+          <h1 style={{ fontSize: 36 }}>
+            {job.type ? (getModules(locale).find(m => m.id === job.type)?.title || job.title) : job.title}
+          </h1>
           <p className="muted">{copy.job.id}: {job.id}</p>
         </div>
         <button className="button secondary" disabled={retrying} onClick={retry} type="button">

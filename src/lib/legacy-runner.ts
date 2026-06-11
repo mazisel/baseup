@@ -52,6 +52,11 @@ async function runStreamingLegacyJob(
 
   const legacySessionId = `saas_${jobId}`;
   const body = buildLegacyBody(input, legacySessionId);
+
+  // SSE dinleyicisini POST isteğinden ÖNCE başlat, böylece erken gelen log'lar kaybolmaz.
+  const sseUrl = new URL(`/api/logs/${legacySessionId}`, baseUrl);
+  const ssePromise = readLegacySse(jobId, sseUrl, addLog);
+
   const response = await fetch(new URL(endpoint, baseUrl), {
     method: "POST",
     headers: {
@@ -64,8 +69,8 @@ async function runStreamingLegacyJob(
     throw new Error(`Legacy endpoint HTTP ${response.status}`);
   }
 
-  addLog(jobId, "info", "İşlem legacy sunucusu tarafından kabul edildi, canlı kayıtlar (log stream) bekleniyor...");
-  await readLegacySse(jobId, new URL(`/api/logs/${legacySessionId}`, baseUrl), addLog);
+  addLog(jobId, "info", "İşlem legacy sunucusu tarafından kabul edildi, canlı kayıtlar bekleniyor...");
+  await ssePromise;
 }
 
 async function runJsonLegacyJob(

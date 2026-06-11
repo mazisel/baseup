@@ -1958,7 +1958,6 @@ app.post('/api/migrate', async (req, res) => {
   };
   const step = (msg) => log(`\n━━━ ${msg} ━━━`, 'step');
 
-  setTimeout(() => {
   (async () => {
     try {
       const ts = Date.now();
@@ -3481,7 +3480,6 @@ app.post('/api/clean-install', async (req, res) => {
       sseClients.delete(sessionId);
     }
   })();
-  }, 1000);
 });
 
 // ─── CLOUD'DAN SELF-HOST'A TAŞIMA API (Migrate from Cloud) ─────
