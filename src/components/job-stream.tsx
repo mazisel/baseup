@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { getCopy } from "@/lib/i18n";
@@ -32,8 +32,9 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
   const [logs, setLogs] = useState<JobEventRow[]>([]);
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState("");
+  const logShellRef = useRef<HTMLDivElement>(null);
   const copy = getCopy(locale);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     // Fetch initial logs
@@ -64,6 +65,12 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
       supabase.removeChannel(channel);
     };
   }, [initialJob.id, supabase]);
+
+  useEffect(() => {
+    const shell = logShellRef.current;
+    if (!shell) return;
+    shell.scrollTop = shell.scrollHeight;
+  }, [logs]);
 
   const summaryItems = useMemo(() => {
     return [
@@ -124,7 +131,7 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
 
       <section className="panel">
         <h2>{copy.job.liveLog}</h2>
-        <div className="log-shell" aria-live="polite">
+        <div className="log-shell" ref={logShellRef} aria-live="polite">
           {logs.length === 0 ? (
             <div className="log-line">
               <span className="time">--:--:--</span>

@@ -1273,9 +1273,12 @@ textarea:focus {
   color: #d9f7e3;
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 13px;
+  height: clamp(320px, 52vh, 560px);
   line-height: 1.65;
-  min-height: 420px;
-  overflow: auto;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px;
 }
 
@@ -1289,6 +1292,12 @@ textarea:focus {
 
 .log-line .time {
   color: #8ba294;
+}
+
+.log-line .message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .log-line.warn .message {
