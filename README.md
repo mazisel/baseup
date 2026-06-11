@@ -49,6 +49,7 @@ The repo is a self-contained stack: `web` (Next.js UI + BullMQ worker), `legacy`
 | `PAYTR_MERCHANT_ID` / `PAYTR_MERCHANT_KEY` / `PAYTR_MERCHANT_SALT` | 💳 | Billing; set the PayTR callback to `https://<your-domain>/api/billing/paytr/callback` |
 | `SAAS_RUNNER_MODE` | — | Defaults to `legacy` in compose (real runs) |
 | `LEGACY_WEBAPP_URL` | — | Defaults to `http://legacy:4567` (internal service) |
+| `WEB_PORT` | — | Host port for the UI, defaults to `3000` (set e.g. `3001` if 3000 is taken by Supabase Studio) |
 
 After deploy, put a reverse proxy with TLS in front of port 3000 and re-deploy the stack whenever `NEXT_PUBLIC_*` values change (they are build-time arguments, not runtime config).
 

@@ -11,7 +11,8 @@ services:
         - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
         - NEXT_PUBLIC_FROM_EMAIL=${NEXT_PUBLIC_FROM_EMAIL:-SupaOps <noreply@supaops.com>}
     ports:
-      - "3000:3000"
+      # Host portu doluysa (örn. Supabase Studio 3000 kullanır) WEB_PORT ile değiştirin
+      - "${WEB_PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
       - REDIS_HOST=redis
