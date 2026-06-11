@@ -2698,7 +2698,8 @@ app.post('/api/migrate', async (req, res) => {
 
       setStage('restoring_database');
       const restoreCode = await sshExecStream(targetHost, targetPass,
-         `cd ${tgtDir}/docker &&
+         `psql_prep() { n=0; while true; do "$@"; rc=$?; if [ $rc -eq 0 ]; then return 0; fi; n=$((n+1)); if [ $n -ge 5 ]; then return $rc; fi; echo "⚠️ psql hata (exit $rc, deneme $n/5) — DB konteynerinin toparlanması bekleniyor..."; w=0; until docker exec supabase-${targetInstance}-db pg_isready -U postgres >/dev/null 2>&1; do w=$((w+1)); if [ $w -ge 40 ]; then echo "❌ DB konteyneri 120 sn içinde geri gelmedi"; return $rc; fi; sleep 3; done; sleep 2; done; };
+	         cd ${tgtDir}/docker &&
 		         if [ -f docker-compose.yml ]; then
 		           sed -i -E "s#image:[[:space:]]*public[.]ecr[.]aws/supabase/kong:#image: kong:#g" docker-compose.yml &&
 		           sed -i -E "s#image:[[:space:]]*public[.]ecr[.]aws/supabase/imgproxy:#image: darthsim/imgproxy:#g" docker-compose.yml &&
@@ -2707,6 +2708,7 @@ app.post('/api/migrate', async (req, res) => {
 		           sed -i -E "s#image:[[:space:]]*public[.]ecr[.]aws/supabase/#image: supabase/#g" docker-compose.yml;
 		         fi &&
              ${envSecretValidationCommand}
+		         echo "🛠 Restore hazırlık motoru: v2 (init-marker + dayanıklı psql retry)" &&
 		         echo "Önceki compose servisleri durduruluyor (temiz restore için)..." &&
 		         (docker compose down -v --remove-orphans >/dev/null 2>&1 || true) &&
 		         echo "Eski DB verisi temizleniyor (yeni POSTGRES_PASSWORD ile sıfırdan init için)..." &&
@@ -2714,21 +2716,28 @@ app.post('/api/migrate', async (req, res) => {
 		         docker compose up -d --no-deps db &&
 	         echo "DB başlatılıyor (ilk init birkaç dakika sürebilir)..." &&
 	         db_ready=0 &&
-	         for i in $(seq 1 60); do
-	           if docker exec supabase-${targetInstance}-db pg_isready -U postgres >/dev/null 2>&1 && docker exec supabase-${targetInstance}-db psql -U supabase_admin -d postgres -Atc "select 1" >/dev/null 2>&1; then db_ready=1; break; fi;
+	         stable=0 &&
+	         for i in $(seq 1 120); do
+	           if docker exec supabase-${targetInstance}-db pg_isready -U postgres >/dev/null 2>&1 && docker exec supabase-${targetInstance}-db psql -U supabase_admin -d postgres -Atc "select 1" >/dev/null 2>&1; then
+	             if docker logs supabase-${targetInstance}-db 2>&1 | grep -Eq "PostgreSQL init process complete|Skipping initialization"; then db_ready=1; break; fi;
+	             stable=$((stable+1));
+	             if [ $stable -ge 12 ]; then db_ready=1; break; fi;
+	           else
+	             stable=0;
+	           fi;
 	           sleep 3;
 	         done &&
 	         if [ "$db_ready" -ne 1 ]; then
-	           echo "❌ DB 180 saniye içinde hazır olmadı veya supabase_admin parola doğrulaması başarısız. Container logları:";
+	           echo "❌ DB 360 saniye içinde hazır olmadı (ilk init tamamlanmadı) veya supabase_admin parola doğrulaması başarısız. Container logları:";
 	           docker logs --tail 50 supabase-${targetInstance}-db 2>&1;
 	           exit 9;
 	         fi &&
 	         echo "DB hazır, supabase_admin girişi doğrulandı ✅" &&
 	         echo "Uyumluluk rolleri hazırlanıyor..." &&
-	         docker exec supabase-${targetInstance}-db psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "DO \\$\\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='supabase_realtime_admin') THEN CREATE ROLE supabase_realtime_admin NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='mcp_readonly') THEN CREATE ROLE mcp_readonly NOLOGIN; END IF; END \\$\\$;" &&
+	         psql_prep docker exec supabase-${targetInstance}-db psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "DO \\$\\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='supabase_realtime_admin') THEN CREATE ROLE supabase_realtime_admin NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='mcp_readonly') THEN CREATE ROLE mcp_readonly NOLOGIN; END IF; END \\$\\$;" &&
 	         echo "Hedef postgres veritabanı sıfırlanıyor..." &&
-	         docker exec supabase-${targetInstance}-db psql -U supabase_admin -d template1 -c "DROP DATABASE IF EXISTS postgres WITH (FORCE);" &&
-	         docker exec supabase-${targetInstance}-db psql -U supabase_admin -d template1 -c "CREATE DATABASE postgres OWNER supabase_admin;" &&
+	         psql_prep docker exec supabase-${targetInstance}-db psql -U supabase_admin -d template1 -c "DROP DATABASE IF EXISTS postgres WITH (FORCE);" &&
+	         psql_prep docker exec supabase-${targetInstance}-db psql -U supabase_admin -d template1 -c "CREATE DATABASE postgres OWNER supabase_admin;" &&
 	         echo "Hedef postgres veritabanı yeniden oluşturuldu" &&
 	         ${superPsqlStdin} < /tmp/supabase_pgdump_${ts}.sql 2>/tmp/psql_restore_${ts}.log;
 	         psql_exit=$?;
@@ -2740,6 +2749,11 @@ app.post('/api/migrate', async (req, res) => {
 	           else
 	             echo "❌ Restore başlamadan önceki hazırlık adımı başarısız oldu (rol oluşturma / DB sıfırlama). Yukarıdaki psql hatasına bakın.";
 	           fi;
+	           echo "🔎 Otomatik teşhis (exit \${psql_exit}):";
+	           docker inspect -f "container: RestartCount={{.RestartCount}} Status={{.State.Status}} OOMKilled={{.State.OOMKilled}} ExitCode={{.State.ExitCode}}" supabase-${targetInstance}-db 2>/dev/null;
+	           echo "— Bellek durumu:"; free -m 2>/dev/null | head -3;
+	           echo "— OOM/kill kayıtları (dmesg):"; dmesg 2>/dev/null | grep -iE "out of memory|killed process|oom" | tail -n 5; true;
+	           echo "— Son DB container logları:"; docker logs --tail 25 supabase-${targetInstance}-db 2>&1;
 	           exit \${psql_exit};
 	         fi &&
 	         if [ -s /tmp/psql_restore_${ts}.log ]; then
@@ -3941,8 +3955,21 @@ sed -i 's|public.ecr.aws/supabase/supavisor:|supabase/supavisor:|g' docker-compo
 sed -i 's|public.ecr.aws/supabase/vector:|timberio/vector:|g' docker-compose.yml && \
 sed -i 's|public.ecr.aws/supabase/pgbouncer:|supabase/pgbouncer:|g' docker-compose.yml && \
 docker compose pull db && docker compose up -d db && \
-echo "Veritabanının hazır olması için 15 saniye bekleniyor..." && \
-sleep 15`,
+echo "DB başlatılıyor (ilk init birkaç dakika sürebilir)..." && \
+db_ready=0 && \
+stable=0 && \
+for i in $(seq 1 120); do \
+  if docker exec supabase-${targetInstance}-db pg_isready -U postgres >/dev/null 2>&1 && docker exec supabase-${targetInstance}-db psql -U postgres -d postgres -Atc "select 1" >/dev/null 2>&1; then \
+    if docker logs supabase-${targetInstance}-db 2>&1 | grep -Eq "PostgreSQL init process complete|Skipping initialization"; then db_ready=1; break; fi; \
+    stable=$((stable+1)); \
+    if [ $stable -ge 12 ]; then db_ready=1; break; fi; \
+  else \
+    stable=0; \
+  fi; \
+  sleep 3; \
+done && \
+if [ "$db_ready" -ne 1 ]; then echo "❌ DB 360 saniye içinde hazır olmadı. Container logları:"; docker logs --tail 50 supabase-${targetInstance}-db 2>&1; exit 9; fi && \
+echo "DB hazır ✅"`,
           sessionId
         );
         if (startDbCode !== 0) throw new Error('Hedef db başlatılamadı!');
