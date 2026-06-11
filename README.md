@@ -68,3 +68,5 @@ Environment variables (runtime):
 To ship an update: push to `main` (or re-run the workflow), then **Pull and redeploy** in Portainer. Put a reverse proxy with TLS in front of the web port.
 
 > **Security**: the `legacy` and `redis` services intentionally publish no ports. The web container reaches the legacy API through the internal Compose DNS name `http://legacy:4567`; do not point `LEGACY_WEBAPP_URL` at `172.17.0.1` or a public host. The legacy API is unauthenticated and executes root SSH commands on customer servers — never expose it publicly.
+
+> **Same-host migrations**: if the source server is the same VPS that runs this stack, enter `host.docker.internal` as the source host instead of the VPS public IP. The `legacy` service maps that name to Docker's host gateway so SSH does not rely on public-IP hairpin routing.

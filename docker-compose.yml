@@ -35,6 +35,9 @@ services:
     # GÜVENLİK: Bu API auth içermez ve müşteri sunucularında root SSH
     # komutları çalıştırır. Port bilinçli olarak publish EDİLMİYOR —
     # yalnızca compose iç ağından (http://legacy:4567) erişilir.
+    # Aynı VPS'e SSH atılacaksa formda public IP yerine host.docker.internal kullanın.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   redis:
