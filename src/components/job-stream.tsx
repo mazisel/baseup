@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RotateCcw, KeyRound, Copy, Check, ExternalLink } from "lucide-react";
+import { RotateCcw, KeyRound, Copy, Check, ExternalLink, XCircle } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { getCopy } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
@@ -30,6 +30,7 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
   const [job, setJob] = useState(initialJob);
   const [logs, setLogs] = useState<JobEventRow[]>([]);
   const [retrying, setRetrying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [retryError, setRetryError] = useState("");
   const logShellRef = useRef<HTMLDivElement>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
@@ -142,6 +143,27 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
     setRetrying(false);
   }
 
+  async function cancelJob() {
+    if (!confirm(locale === "tr" ? "Bu işlemi durdurmak istediğinize emin misiniz? (Arka planda çalışmaya devam etmeyecektir, ancak zaten tamamlanmış kısımlar geri alınmaz)" : "Are you sure you want to stop this operation? (It won't continue running in the background, but already completed parts won't be reverted)")) {
+      return;
+    }
+
+    setCancelling(true);
+    setRetryError("");
+    try {
+      const response = await fetch(`/api/jobs/${job.id}/cancel`, { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setJob(prev => ({ ...prev, status: "cancelled" }));
+      } else {
+        setRetryError(data.error || "İptal edilemedi");
+      }
+    } catch {
+      setRetryError(locale === "tr" ? "Sunucuya ulaşılamadı." : "Could not reach the server.");
+    }
+    setCancelling(false);
+  }
+
   return (
     <div>
       <div className="page-head">
@@ -154,10 +176,18 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
           </h1>
           <p className="muted">{copy.job.id}: {job.id}</p>
         </div>
-        <button className="button secondary" disabled={retrying} onClick={retry} type="button">
-          <RotateCcw size={16} />
-          {retrying ? copy.job.retrying : copy.job.retry}
-        </button>
+        <div style={{ display: "flex", gap: "8px" }}>
+          {!isTerminal && (
+            <button className="button danger ghost" disabled={cancelling} onClick={cancelJob} type="button" style={{ borderColor: "var(--color-danger, #d32f2f)", color: "var(--color-danger, #d32f2f)" }}>
+              <XCircle size={16} />
+              {cancelling ? copy.job.cancelling : copy.job.cancel}
+            </button>
+          )}
+          <button className="button secondary" disabled={retrying} onClick={retry} type="button">
+            <RotateCcw size={16} />
+            {retrying ? copy.job.retrying : copy.job.retry}
+          </button>
+        </div>
       </div>
 
       <div className="stats-grid">

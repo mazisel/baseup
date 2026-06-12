@@ -126,8 +126,23 @@ export function startWorker() {
     console.log(`[worker] Job ${job.id} tamamlandı`);
   });
 
-  worker.on("failed", (job, err) => {
+  worker.on("failed", async (job, err) => {
     console.error(`[worker] Job ${job?.id} başarısız: ${err.message}`);
+    if (job) {
+      const jobId = resolveJobRunId(job);
+      if (jobId) {
+        const message = `İşlem beklenmedik şekilde sonlandı: ${err.message}`;
+        await supabase
+          .from("job_runs")
+          .update({
+            status: "error",
+            error_message: message,
+            finished_at: new Date().toISOString()
+          })
+          .eq("id", jobId)
+          .in("status", ["running", "queued"]);
+      }
+    }
   });
 
   worker.on("error", (error) => {

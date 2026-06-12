@@ -14,7 +14,16 @@ type HealthMonitorRow = {
   created_at: string;
 };
 
-function toMonitor(row: HealthMonitorRow) {
+type HealthEventRow = {
+  id: string;
+  monitor_id: string;
+  status: "up" | "down";
+  response_time_ms: number | null;
+  error_message: string | null;
+  created_at: string;
+};
+
+function toMonitor(row: HealthMonitorRow, events: HealthEventRow[] = []) {
   return {
     id: row.id,
     workspaceId: row.workspace_id,
@@ -23,6 +32,14 @@ function toMonitor(row: HealthMonitorRow) {
     status: row.status,
     lastCheckedAt: row.last_checked_at || undefined,
     createdAt: row.created_at,
+    events: events.map(event => ({
+      id: event.id,
+      monitorId: event.monitor_id,
+      status: event.status,
+      responseTimeMs: event.response_time_ms ?? undefined,
+      errorMessage: event.error_message ?? undefined,
+      createdAt: event.created_at,
+    })),
   };
 }
 
@@ -49,7 +66,33 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ monitors: (data || []).map(toMonitor) });
+  const monitorRows = data || [];
+  if (monitorRows.length === 0) {
+    return NextResponse.json({ monitors: [] });
+  }
+
+  const monitorIds = monitorRows.map(monitor => monitor.id);
+  const { data: eventRows, error: eventsError } = await supabase
+    .from("health_events")
+    .select("id, monitor_id, status, response_time_ms, error_message, created_at")
+    .in("monitor_id", monitorIds)
+    .order("created_at", { ascending: false })
+    .limit(Math.max(monitorIds.length * 60, 60));
+
+  if (eventsError) {
+    return NextResponse.json({ error: eventsError.message }, { status: 400 });
+  }
+
+  const eventsByMonitor = new Map<string, HealthEventRow[]>();
+  for (const event of eventRows || []) {
+    const group = eventsByMonitor.get(event.monitor_id) || [];
+    group.push(event as HealthEventRow);
+    eventsByMonitor.set(event.monitor_id, group);
+  }
+
+  return NextResponse.json({
+    monitors: monitorRows.map(row => toMonitor(row, eventsByMonitor.get(row.id) || [])),
+  });
 }
 
 export async function POST(req: Request) {
