@@ -2281,6 +2281,9 @@ app.post('/api/migrate', async (req, res) => {
     certbotEmail,  // Let's Encrypt için e-posta
     schemaOnly,    // true → sadece şema + bucket tanımları, false → tam veri
     continueOnMinorErrors,
+    preserveSourceKeys,  // true → kaynak JWT/ANON/SERVICE_ROLE anahtarlarını koru
+    resume,              // true → checkpoint varsa tamamlanmış ağır adımları atla
+    cleanupOnFailure,    // true → hata olursa hedefteki yarım stack'i temizle
     targetInstance
   } = req.body;
   
@@ -2295,6 +2298,7 @@ app.post('/api/migrate', async (req, res) => {
 
   (async () => {
     let currentStage = 'checking_source';
+    let skipToServices = false; // resume: restore tamamlandıysa ağır adımları atla
     const setStage = (stageKey) => {
       currentStage = stageKey;
       emitMigrationStage(log, stageKey);
@@ -2386,6 +2390,32 @@ app.post('/api/migrate', async (req, res) => {
         log(`⚠️ Kaynak sürüm tespiti başarısız (non-kritik): ${e.message}`, 'warn');
       }
 
+      // Kaynak API anahtarlarını koru (opsiyonel): JWT_SECRET/ANON_KEY/SERVICE_ROLE_KEY
+      // kaynaktan taşınır; böylece müşterinin mevcut uygulamalarındaki anahtarlar geçerli kalır.
+      if (preserveSourceKeys) {
+        try {
+          const srcEnvDir = sourceRepoDir || '/root/supabase';
+          const keyProbe = await sshExec(sourceHost, sourcePass,
+            `grep -E '^(JWT_SECRET|ANON_KEY|SERVICE_ROLE_KEY)=' ${srcEnvDir}/docker/.env 2>/dev/null || true`
+          );
+          const parsedKeys = {};
+          for (const kline of String(keyProbe.output || '').split('\n')) {
+            const km = kline.match(/^(JWT_SECRET|ANON_KEY|SERVICE_ROLE_KEY)=(.*)$/);
+            if (km) parsedKeys[km[1]] = km[2].trim().replace(/^["']|["']$/g, '');
+          }
+          if (parsedKeys.JWT_SECRET && parsedKeys.ANON_KEY && parsedKeys.SERVICE_ROLE_KEY) {
+            env.JWT_SECRET = parsedKeys.JWT_SECRET;
+            env.ANON_KEY = parsedKeys.ANON_KEY;
+            env.SERVICE_ROLE_KEY = parsedKeys.SERVICE_ROLE_KEY;
+            log('🔑 Kaynak API anahtarları korunuyor (JWT_SECRET/ANON_KEY/SERVICE_ROLE_KEY) — mevcut uygulamalarınız aynı anahtarlarla çalışmaya devam edecek.', 'success');
+          } else {
+            log('⚠️ Kaynak API anahtarları okunamadı; hedefte yeni anahtarlar üretilecek. Mevcut uygulamalarınızdaki ANON_KEY/SERVICE_ROLE_KEY değerlerini güncellemeniz gerekebilir.', 'warn');
+          }
+        } catch (e) {
+          log(`⚠️ Kaynak anahtar okuma hatası (non-kritik): ${e.message}`, 'warn');
+        }
+      }
+
       // ─── Schema-only modunda storage.migrations geçmişini ayrıca doğrula ───
       if (schemaOnly) {
         try {
@@ -2407,6 +2437,32 @@ app.post('/api/migrate', async (req, res) => {
       }
 
       // ADIM 1: PostgreSQL Dump ─── KRİTİK
+      // Checkpoint/resume: önceki çalışma restore'u bitirdiyse ağır adımları atla.
+      if (resume) {
+        try {
+          const cp = await sshExec(targetHost, targetPass, `cat ${tgtDir}/.baseup_checkpoint 2>/dev/null || true`);
+          if (String(cp.output || '').includes('restore_done')) {
+            skipToServices = true;
+            log('⏩ Checkpoint bulundu: veritabanı geri yükleme tamamlanmış. Yedekleme/aktarım/restore adımları atlanıp doğrudan servis başlatmaya geçiliyor.', 'success');
+            // Hedefteki gerçek .env değerlerini kullan ki doğrulama ve final loglar tutarlı olsun
+            try {
+              const effEnv = await sshExec(targetHost, targetPass, `grep -E '^(DASHBOARD_PASSWORD|JWT_SECRET|ANON_KEY|SERVICE_ROLE_KEY)=' ${tgtDir}/docker/.env 2>/dev/null || true`);
+              for (const eline of String(effEnv.output || '').split('\n')) {
+                const em = eline.match(/^(DASHBOARD_PASSWORD|JWT_SECRET|ANON_KEY|SERVICE_ROLE_KEY)=(.*)$/);
+                if (em) env[em[1]] = em[2].trim().replace(/^["']|["']$/g, '');
+              }
+            } catch (effErr) {
+              log(`⚠️ Hedef .env okunamadı (non-kritik): ${effErr.message}`, 'warn');
+            }
+          } else {
+            log('ℹ️ Geçerli bir checkpoint bulunamadı (restore tamamlanmamış); taşıma baştan çalıştırılıyor.', 'warn');
+          }
+        } catch (cpErr) {
+          log(`⚠️ Checkpoint okunamadı, baştan çalıştırılıyor: ${cpErr.message}`, 'warn');
+        }
+      }
+
+      if (!skipToServices) {
       setStage('creating_backup');
       const dumpFlag = schemaOnly ? '--schema-only' : '';
       const dumpLabel = schemaOnly ? 'Şema (tablo yapısı) yedekleniyor' : 'Tam veritabanı yedekleniyor';
@@ -3014,6 +3070,15 @@ app.post('/api/migrate', async (req, res) => {
         }
       } catch (e) {
         throw new Error(`Sahiplik doğrulama başarısız: ${e.message}`);
+      }
+
+      } // ── skipToServices: ağır blok (yedek/aktarım/restore) sonu ──
+
+      // Restore tamamlandı; bir sonraki resume için checkpoint yaz (servisler henüz başlamadı).
+      try {
+        await sshExec(targetHost, targetPass, `mkdir -p ${tgtDir} && printf 'restore_done\n' > ${tgtDir}/.baseup_checkpoint`);
+      } catch (cpWriteErr) {
+        log(`⚠️ Checkpoint yazılamadı (non-kritik): ${cpWriteErr.message}`, 'warn');
       }
 
       // ADIM 6: Tüm servisler ─── OPSİYONEL (DB zaten ayakta)
@@ -3711,6 +3776,9 @@ SQL
         log(`⚠️ Studio giriş doğrulaması yapılamadı (non-kritik): ${verifyErr.message}`, 'warn');
       }
 
+      // Başarı: checkpoint'i temizle ki sonraki taşıma yanlışlıkla adım atlamasın.
+      try { await sshExec(targetHost, targetPass, `rm -f ${tgtDir}/.baseup_checkpoint`); } catch (cpClrErr) { log(`⚠️ Checkpoint temizlenemedi (non-kritik): ${cpClrErr.message}`, 'warn'); }
+
       log('\n✅ MİGRATION BAŞARIYLA TAMAMLANDI!', 'success');
       log(`🌐 Studio: https://${studioDomain}`, 'success');
       log(`🔌 API:    https://${apiDomain}`, 'success');
@@ -3722,6 +3790,19 @@ SQL
     } catch (err) {
       log(`❌ Kritik Hata: ${err.message}`, 'error');
       logMigrationFailureGuidance(log, currentStage, err, targetInstance);
+      if (cleanupOnFailure) {
+        log('🧹 Otomatik temizlik açık: hedefteki yarım Supabase stack\'i kaldırılıyor...', 'warn');
+        try {
+          await sshExecStream(targetHost, targetPass,
+            `cd ${tgtDir}/docker 2>/dev/null && (docker compose down -v --remove-orphans >/dev/null 2>&1 || true); rm -rf ${tgtDir}/docker/volumes/db/data 2>/dev/null; rm -f ${tgtDir}/.baseup_checkpoint 2>/dev/null; echo "Temizlik tamamlandı"`,
+            sessionId,
+            { stepLabel: 'Başarısızlık sonrası temizlik' }
+          );
+          log('🧹 Hedef temizlendi; bir sonraki çalıştırma sıfırdan başlayacak.', 'warn');
+        } catch (cleanupErr) {
+          log(`⚠️ Temizlik sırasında hata (elle kontrol gerekebilir): ${cleanupErr.message}`, 'warn');
+        }
+      }
       closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();

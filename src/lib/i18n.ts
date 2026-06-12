@@ -126,6 +126,9 @@ export const COPY = {
       migrateStorage: "Storage taşı",
       continueOnMinorErrors: "Küçük hatalarda devam et",
       skipInstall: "Kurulumu atla",
+      preserveSourceKeys: "Kaynak API anahtarlarını koru (mevcut uygulamalar çalışmaya devam etsin)",
+      resume: "Kaldığı yerden devam et (önceki çalışmanın checkpoint'i varsa)",
+      cleanupOnFailure: "Hata olursa hedefteki yarım kurulumu temizle",
       back: "Geri",
       next: "Devam et",
       submit: "İşlemi başlat",
@@ -146,6 +149,17 @@ export const COPY = {
         target: "Hedef",
         instance: "Instance",
         scope: "Kapsam"
+      },
+      credentials: {
+        title: "Erişim Bilgileri",
+        hint: "Bu bilgileri güvenli bir yerde saklayın. Şifre yalnızca burada gösterilir.",
+        studio: "Studio adresi",
+        api: "API adresi",
+        user: "Kullanıcı",
+        password: "Şifre",
+        copy: "Kopyala",
+        copied: "Kopyalandı",
+        open: "Aç"
       }
     },
     settings: {
@@ -382,6 +396,9 @@ export const COPY = {
       migrateStorage: "Move storage",
       continueOnMinorErrors: "Continue on minor errors",
       skipInstall: "Skip install",
+      preserveSourceKeys: "Preserve source API keys (keep existing apps working)",
+      resume: "Resume from checkpoint (if a previous run left one)",
+      cleanupOnFailure: "Clean up the half-finished target on failure",
       back: "Back",
       next: "Continue",
       submit: "Start operation",
@@ -402,6 +419,17 @@ export const COPY = {
         target: "Target",
         instance: "Instance",
         scope: "Scope"
+      },
+      credentials: {
+        title: "Access Details",
+        hint: "Store these somewhere safe. The password is only shown here.",
+        studio: "Studio URL",
+        api: "API URL",
+        user: "Username",
+        password: "Password",
+        copy: "Copy",
+        copied: "Copied",
+        open: "Open"
       }
     },
     settings: {

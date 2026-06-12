@@ -85,6 +85,9 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
       migrateStorage: form.get("migrateStorage") === "on",
       continueOnMinorErrors: form.get("continueOnMinorErrors") === "on",
       skipInstall: form.get("skipInstall") === "on",
+      preserveSourceKeys: form.get("preserveSourceKeys") === "on",
+      resume: form.get("resume") === "on",
+      cleanupOnFailure: form.get("cleanupOnFailure") === "on",
       settingsUpdates,
       s3AccessKey: String(form.get("s3AccessKey") || ""),
       s3SecretKey: String(form.get("s3SecretKey") || ""),
@@ -467,6 +470,24 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
             <label className="toggle-row option-card">
               <input name="migrateSecrets" type="checkbox" />
               <span>Gizli Ortam Değişkenlerini (Secrets) Taşı</span>
+            </label>
+          )}
+          {type === "self_hosted_migration" && (
+            <label className="toggle-row option-card">
+              <input name="preserveSourceKeys" type="checkbox" />
+              <span>{copy.launcher.preserveSourceKeys}</span>
+            </label>
+          )}
+          {type === "self_hosted_migration" && (
+            <label className="toggle-row option-card">
+              <input name="resume" type="checkbox" />
+              <span>{copy.launcher.resume}</span>
+            </label>
+          )}
+          {needsTarget(type) && (
+            <label className="toggle-row option-card">
+              <input name="cleanupOnFailure" type="checkbox" />
+              <span>{copy.launcher.cleanupOnFailure}</span>
             </label>
           )}
         </div>

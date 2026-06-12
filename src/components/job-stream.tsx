@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, KeyRound, Copy, Check, ExternalLink } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { getCopy } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
@@ -101,6 +101,7 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
   }, [isTerminal, initialJob.id, supabase]);
 
   const currentStage = useMemo(() => getCurrentStage(logs), [logs]);
+  const credentials = useMemo(() => extractCredentials(logs), [logs]);
 
   const summaryItems = useMemo(() => {
     return [
@@ -167,6 +168,8 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
       {job.errorMessage ? <p className="notice">{job.errorMessage}</p> : null}
       {retryError ? <p className="notice" role="alert">{retryError}</p> : null}
 
+      {credentials ? <CredentialsCard credentials={credentials} copy={copy} /> : null}
+
       <section className="panel">
         <h2>{copy.job.liveLog}</h2>
         <div className="log-shell" ref={logShellRef} aria-live="polite">
@@ -184,6 +187,86 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
         </div>
       </section>
     </div>
+  );
+}
+
+type JobCredentials = {
+  studioUrl?: string;
+  apiUrl?: string;
+  user?: string;
+  password?: string;
+};
+
+// Erişim bilgilerini, motorun bastığı son özet satırlarından ayıkla.
+// (Yeni persistensiyon yok; loglarda zaten var olan değerleri derli toplu gösteriyoruz.)
+function extractCredentials(logs: JobEventRow[]): JobCredentials | null {
+  const creds: JobCredentials = {};
+  for (const log of logs) {
+    const msg = log.message;
+    const studio = msg.match(/Studio:\s*(https?:\/\/\S+)/i);
+    if (studio) creds.studioUrl = studio[1];
+    const api = msg.match(/API:\s*(https?:\/\/\S+)/i);
+    if (api) creds.apiUrl = api[1];
+    const dash = msg.match(/Dashboard Kullanıcı:\s*(\S+)\s*\/\s*(\S+)/i);
+    if (dash) { creds.user = dash[1]; creds.password = dash[2]; }
+  }
+  return (creds.studioUrl || creds.password) ? creds : null;
+}
+
+function CopyButton({ value, copyLabel, copiedLabel }: { value: string; copyLabel: string; copiedLabel: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="button ghost"
+      style={{ padding: "4px 10px", fontSize: 13 }}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        } catch {
+          // pano erişimi reddedildiyse sessiz geç
+        }
+      }}
+    >
+      {copied ? <Check size={14} /> : <Copy size={14} />}
+      {copied ? copiedLabel : copyLabel}
+    </button>
+  );
+}
+
+function CredentialsCard({ credentials, copy }: { credentials: JobCredentials; copy: ReturnType<typeof getCopy> }) {
+  const c = copy.job.credentials;
+  const rows: Array<{ label: string; value: string; href?: string; mono?: boolean }> = [];
+  if (credentials.studioUrl) rows.push({ label: c.studio, value: credentials.studioUrl, href: credentials.studioUrl });
+  if (credentials.apiUrl) rows.push({ label: c.api, value: credentials.apiUrl, href: credentials.apiUrl });
+  if (credentials.user) rows.push({ label: c.user, value: credentials.user, mono: true });
+  if (credentials.password) rows.push({ label: c.password, value: credentials.password, mono: true });
+
+  return (
+    <section className="panel" style={{ marginBottom: 18, borderLeft: "3px solid var(--color-primary, #1f7a4d)" }}>
+      <h2 style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 0 }}>
+        <KeyRound size={18} /> {c.title}
+      </h2>
+      <p className="muted" style={{ marginTop: -4, marginBottom: 16, fontSize: 13 }}>{c.hint}</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {rows.map(row => (
+          <div key={row.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <span className="muted" style={{ minWidth: 110, fontSize: 13 }}>{row.label}</span>
+            <code style={{ flex: 1, wordBreak: "break-all", fontFamily: row.mono ? "monospace" : undefined, fontSize: 14 }}>{row.value}</code>
+            <div style={{ display: "flex", gap: 6 }}>
+              {row.href ? (
+                <a className="button ghost" style={{ padding: "4px 10px", fontSize: 13 }} href={row.href} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink size={14} /> {c.open}
+                </a>
+              ) : null}
+              <CopyButton value={row.value} copyLabel={c.copy} copiedLabel={c.copied} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

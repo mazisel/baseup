@@ -204,6 +204,9 @@ function buildLegacyBody(input: JobRequestInput, sessionId: string) {
         setupBackup: input.setupBackup,
         certbotEmail: input.certbotEmail,
         continueOnMinorErrors: input.continueOnMinorErrors,
+        preserveSourceKeys: input.preserveSourceKeys,
+        resume: input.resume,
+        cleanupOnFailure: input.cleanupOnFailure,
         targetInstance: input.targetInstance || "1",
         anonymizeData: input.anonymizeData
       };
