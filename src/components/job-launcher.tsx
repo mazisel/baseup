@@ -88,6 +88,7 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
       preserveSourceKeys: form.get("preserveSourceKeys") === "on",
       resume: form.get("resume") === "on",
       cleanupOnFailure: form.get("cleanupOnFailure") === "on",
+      skipData: form.get("skipData") === "on",
       settingsUpdates,
       s3AccessKey: String(form.get("s3AccessKey") || ""),
       s3SecretKey: String(form.get("s3SecretKey") || ""),
@@ -458,6 +459,12 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
             <label className="toggle-row option-card">
               <input name="anonymizeData" type="checkbox" />
               <span>Kişisel Verileri Maskele (Anonimleştir)</span>
+            </label>
+          )}
+          {["self_hosted_migration", "cloud_to_self_hosted"].includes(type) && (
+            <label className="toggle-row option-card">
+              <input name="skipData" type="checkbox" />
+              <span>{copy.launcher.skipData}</span>
             </label>
           )}
           {type === "prod_to_local" && (

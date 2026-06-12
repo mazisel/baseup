@@ -125,8 +125,8 @@ export type JobRequestInput = {
   preserveSourceKeys?: boolean;
   // Hedefte önceki çalışmanın checkpoint'i varsa tamamlanmış ağır adımları atla.
   resume?: boolean;
-  // İş başarısız olursa hedefte kalan yarım stack'i (container + volume) temizle.
   cleanupOnFailure?: boolean;
+  skipData?: boolean;
   settingsUpdates?: Record<string, string>;
   
   // S3 Backup specific fields
