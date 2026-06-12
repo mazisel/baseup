@@ -99,6 +99,8 @@ export type JobRequestInput = {
   sourcePass?: string;
   targetHost?: string;
   targetPass?: string;
+  // Studio (dashboard) basic auth şifresi; boş bırakılırsa motor güvenli bir şifre üretir.
+  dashboardPass?: string;
   targetInstance?: string;
   studioDomain?: string; // Maps to Instance 1
   apiDomain?: string;    // Maps to Instance 1

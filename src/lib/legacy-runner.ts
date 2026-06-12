@@ -173,7 +173,7 @@ function buildLegacyConnectionMessage(baseUrl: string, error: unknown) {
 }
 
 function buildLegacyBody(input: JobRequestInput, sessionId: string) {
-  const env = generateSupabaseEnv();
+  const env = generateSupabaseEnv(input.dashboardPass);
 
   switch (input.type) {
     case "self_hosted_migration":
@@ -338,7 +338,7 @@ function buildLegacyBody(input: JobRequestInput, sessionId: string) {
   }
 }
 
-function generateSupabaseEnv() {
+function generateSupabaseEnv(dashboardPass?: string) {
   const jwtSecret = randomBytes(32).toString("hex");
 
   return {
@@ -346,7 +346,8 @@ function generateSupabaseEnv() {
     JWT_SECRET: jwtSecret,
     ANON_KEY: generateJwt("anon", jwtSecret),
     SERVICE_ROLE_KEY: generateJwt("service_role", jwtSecret),
-    DASHBOARD_PASSWORD: randomBytes(12).toString("base64").replace(/[/+=]/g, "").slice(0, 16),
+    // Kullanıcı Studio şifresi girdiyse onu kullan; boşsa güvenli bir şifre üret.
+    DASHBOARD_PASSWORD: dashboardPass?.trim() || randomBytes(12).toString("base64").replace(/[/+=]/g, "").slice(0, 16),
     SECRET_KEY_BASE: randomBytes(48).toString("base64").replace(/\n/g, ""),
     VAULT_ENC_KEY: randomBytes(16).toString("hex"),
     PG_META_CRYPTO_KEY: randomBytes(16).toString("hex"),

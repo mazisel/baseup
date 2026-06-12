@@ -66,6 +66,7 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
       sourcePass: String(form.get("sourcePass") || ""),
       targetHost: String(form.get("targetHost") || ""),
       targetPass: String(form.get("targetPass") || ""),
+      dashboardPass: String(form.get("dashboardPass") || ""),
       targetInstance: String(form.get("targetInstance") || "1"),
       studioDomain: String(form.get("studioDomain") || ""),
       apiDomain: String(form.get("apiDomain") || ""),
@@ -308,6 +309,12 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
                 <label htmlFor="certbotEmail">{copy.launcher.certbotEmail}</label>
                 <input id="certbotEmail" name="certbotEmail" type="email" placeholder="admin@example.com" />
               </div>
+              {type !== "settings_update" ? (
+                <div className="field">
+                  <label htmlFor="dashboardPass">{copy.launcher.dashboardPass}</label>
+                  <input id="dashboardPass" name="dashboardPass" type="password" autoComplete="new-password" placeholder={copy.launcher.dashboardPassHint} />
+                </div>
+              ) : null}
             </>
           ) : null}
 
