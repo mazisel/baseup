@@ -75,14 +75,32 @@ export default async function HomePage() {
         </section>
       </main>
 
-      <footer className="public-footer" style={{ borderTop: "1px solid var(--border)", padding: "32px 0", marginTop: 64 }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-          <div className="muted" style={{ fontSize: 14 }}>
-            &copy; {new Date().getFullYear()} SupaOps. Tüm hakları saklıdır.
+      <footer className="public-footer" style={{ borderTop: "1px solid var(--border)", padding: "48px 0 32px", marginTop: 64 }}>
+        <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 32, marginBottom: 48 }}>
+            <div style={{ maxWidth: 300 }}>
+              <BrandLogo name={copy.brand} priority />
+              <p className="muted" style={{ fontSize: 14, marginTop: 16, lineHeight: 1.6 }}>
+                {copy.home.lead}
+              </p>
+            </div>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 14 }}>
+              <strong style={{ color: "var(--foreground)", fontWeight: 500 }}>{copy.footer.contactTitle}</strong>
+              <a href={`mailto:${copy.contact.email}`} className="muted hover-primary" style={{ textDecoration: "none" }}>{copy.contact.email}</a>
+              <a href={`tel:${copy.contact.phone.replace(/\s+/g, '')}`} className="muted hover-primary" style={{ textDecoration: "none" }}>{copy.contact.phone}</a>
+              <span className="muted" style={{ lineHeight: 1.5, maxWidth: 250 }}>{copy.contact.address}</span>
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 24, fontSize: 14 }}>
-            <Link href="/legal/privacy" className="muted hover-primary" style={{ textDecoration: "none" }}>Gizlilik Politikası</Link>
-            <Link href="/legal/terms" className="muted hover-primary" style={{ textDecoration: "none" }}>Kullanıcı Sözleşmesi</Link>
+          
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, paddingTop: 32, borderTop: "1px solid var(--border)" }}>
+            <div className="muted" style={{ fontSize: 14 }}>
+              &copy; {new Date().getFullYear()} {copy.brand}. {copy.footer.rights}
+            </div>
+            <div style={{ display: "flex", gap: 24, fontSize: 14 }}>
+              <Link href="/legal/privacy" className="muted hover-primary" style={{ textDecoration: "none" }}>{copy.footer.privacy}</Link>
+              <Link href="/legal/terms" className="muted hover-primary" style={{ textDecoration: "none" }}>{copy.footer.terms}</Link>
+            </div>
           </div>
         </div>
       </footer>

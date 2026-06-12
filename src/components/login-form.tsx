@@ -5,7 +5,7 @@ import { LogIn, MailCheck, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import type { AppCopy } from "@/lib/i18n";
-import { authenticateWithPassword } from "@/app/auth/actions";
+import { authenticateWithPassword } from "@/app/[locale]/auth/actions";
 
 type AuthCopy = AppCopy["auth"];
 type AuthMode = "register" | "login";

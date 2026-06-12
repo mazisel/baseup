@@ -157,6 +157,8 @@ export async function createJob(input: JobRequestInput, user: AppUser, locale: L
         workspaceId: user.workspace.id,
         type: input.type,
         inputs: input, // Be careful not to log this entirely in workers to avoid leaking secrets
+      }, {
+        jobId: job.id,
       }),
       QUEUE_ADD_TIMEOUT_MS,
       "Kuyruk (Redis) zaman aşımına uğradı"

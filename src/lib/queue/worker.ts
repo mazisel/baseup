@@ -8,7 +8,8 @@ import type { JobRequestInput } from "@/types/domain";
 
 // "dry-run" modunda müşteri sunucusuna dokunulmaz; iş akışı, loglar ve durum
 // geçişleri simüle edilir. Gerçek çalıştırma için SAAS_RUNNER_MODE=legacy gerekir.
-const RUNNER_MODE = process.env.SAAS_RUNNER_MODE || "native";
+const RUNNER_MODE = process.env.SAAS_RUNNER_MODE === "legacy" ? "legacy" : "dry-run";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const connection = {
   host: process.env.REDIS_HOST || "localhost",
@@ -26,7 +27,30 @@ export function startWorker() {
   const worker = new Worker<MigrationJobPayload>(
     "migration-jobs",
     async (job: Job<MigrationJobPayload>) => {
-      const { jobId, inputs } = job.data;
+      const { inputs } = job.data;
+      const jobId = resolveJobRunId(job);
+
+      if (!jobId) {
+        console.warn(`[worker] DB job id bulunmayan kuyruk işi atlandı (bullmq job ${job.id ?? "unknown"})`);
+        throw new UnrecoverableError("Queue payload does not contain a valid job_runs id");
+      }
+
+      // Redis kalıcı olduğu için Supabase reset/migration sonrası eski kuyruk
+      // payload'ları kalabilir. DB kaydı yoksa log yazmaya çalışıp FK spam'i üretme.
+      const { data: jobRecord, error: jobRecordError } = await supabase
+        .from("job_runs")
+        .select("created_by, title")
+        .eq("id", jobId)
+        .maybeSingle();
+
+      if (jobRecordError) {
+        throw new Error(`Job kaydı okunamadı (${jobId}): ${jobRecordError.message}`);
+      }
+
+      if (!jobRecord) {
+        console.warn(`[worker] DB kaydı bulunmayan kuyruk işi atlandı (bullmq job ${job.id ?? "unknown"}, job_runs ${jobId})`);
+        throw new UnrecoverableError(`Job run ${jobId} does not exist`);
+      }
 
       async function log(level: string, message: string) {
         const { error } = await supabase.from("job_events").insert({
@@ -40,14 +64,10 @@ export function startWorker() {
       }
 
       let userEmail = "";
-      let jobTitle = "Database Migration";
+      const jobTitle = jobRecord.title || "Database Migration";
 
       try {
-        // Fetch job details to get user ID and title
-        const { data: jobRecord } = await supabase.from("job_runs").select("created_by, title").eq("id", jobId).single();
-        if (jobRecord && jobRecord.created_by) {
-          jobTitle = jobRecord.title;
-          // Fetch user email using Admin API
+        if (jobRecord.created_by) {
           const { data: authUser } = await supabase.auth.admin.getUserById(jobRecord.created_by);
           if (authUser && authUser.user) {
             userEmail = authUser.user.email || "";
@@ -116,6 +136,17 @@ export function startWorker() {
   });
 
   return worker;
+}
+
+function resolveJobRunId(job: Job<MigrationJobPayload>) {
+  const payloadJobId = job.data?.jobId;
+  if (typeof payloadJobId === "string" && UUID_PATTERN.test(payloadJobId)) {
+    return payloadJobId;
+  }
+  if (typeof job.id === "string" && UUID_PATTERN.test(job.id)) {
+    return job.id;
+  }
+  return null;
 }
 
 async function runDryRunJob(

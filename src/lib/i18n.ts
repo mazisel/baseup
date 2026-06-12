@@ -270,6 +270,17 @@ export const COPY = {
       owner: "sahip",
       report: "Rapor",
       file: "Dosya"
+    },
+    contact: {
+      address: "Demircilerardı Mahallesi 27-24 Sokak No: 7 Kat: 2 Daire: 7 Eski Sanayi İş Merkezi D Blok Merkez/Sivas",
+      email: "support@baseup.dev",
+      phone: "0850 840 1072"
+    },
+    footer: {
+      contactTitle: "İletişim",
+      rights: "Tüm hakları saklıdır.",
+      privacy: "Gizlilik Politikası",
+      terms: "Kullanıcı Sözleşmesi"
     }
   },
   en: {
@@ -540,6 +551,17 @@ export const COPY = {
       owner: "owner",
       report: "Report",
       file: "File"
+    },
+    contact: {
+      address: "Demircilerardi District, 27-24 Street, No: 7, Floor: 2, Apt: 7, Eski Sanayi Business Center Block D, Center/Sivas, Turkey",
+      email: "support@baseup.dev",
+      phone: "+90 850 840 1072"
+    },
+    footer: {
+      contactTitle: "Contact",
+      rights: "All rights reserved.",
+      privacy: "Privacy Policy",
+      terms: "Terms of Service"
     }
   }
 } as const;

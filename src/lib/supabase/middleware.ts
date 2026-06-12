@@ -2,8 +2,16 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
+  const requestHeaders = new Headers(request.headers);
+  const localeMatch = request.nextUrl.pathname.match(/^\/(en|tr)(\/|$)/);
+  if (localeMatch) {
+    requestHeaders.set('x-locale', localeMatch[1]);
+  }
+
   let supabaseResponse = NextResponse.next({
-    request,
+    request: {
+      headers: requestHeaders,
+    },
   });
 
   const supabase = createServerClient(
@@ -31,17 +39,21 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAppRoute = request.nextUrl.pathname.startsWith("/app");
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/auth");
+  const pathnameWithoutLocale = request.nextUrl.pathname.replace(/^\/(en|tr)/, '');
+
+  const isAppRoute = pathnameWithoutLocale.startsWith("/app");
+  const isAuthRoute = pathnameWithoutLocale.startsWith("/auth");
+
+  const matchedLocale = requestHeaders.get('x-locale') || 'en';
 
   if (isAppRoute && !user) {
-    const loginUrl = new URL("/auth/login", request.url);
+    const loginUrl = new URL(`/${matchedLocale}/auth/login`, request.url);
     loginUrl.searchParams.set("next", request.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
   }
 
   if (isAuthRoute && user) {
-    return NextResponse.redirect(new URL("/app", request.url));
+    return NextResponse.redirect(new URL(`/${matchedLocale}/app`, request.url));
   }
 
   return supabaseResponse;

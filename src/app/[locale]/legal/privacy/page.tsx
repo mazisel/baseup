@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Gizlilik Politikası | SupaOps",
+  title: "Gizlilik Politikası",
 };
 
 export default function PrivacyPage() {
@@ -12,7 +12,7 @@ export default function PrivacyPage() {
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ marginBottom: 16 }}>1. Toplanan Veriler</h2>
-        <p style={{ marginBottom: 16 }}>SupaOps olarak, hizmetlerimizi sunabilmek amacıyla hesap bilgileriniz (e-posta adresi), fatura bilgileriniz (ödeme altyapısı aracılığıyla işlenir) ve uygulama kullanım loglarınız toplanmaktadır.</p>
+        <p style={{ marginBottom: 16 }}>Baseup olarak, hizmetlerimizi sunabilmek amacıyla hesap bilgileriniz (e-posta adresi), fatura bilgileriniz (ödeme altyapısı aracılığıyla işlenir) ve uygulama kullanım loglarınız toplanmaktadır.</p>
         <p>Sunucu taşıma ve kurulum işlemleriniz sırasında girdiğiniz şifre veya &quot;secret&quot; anahtarları **veri tabanımızda asla saklanmaz**; işlem tamamlandığında veya hata aldığında bellekten temizlenir.</p>
       </section>
 
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
 
       <section>
         <h2 style={{ marginBottom: 16 }}>4. İletişim</h2>
-        <p>Gizlilik süreçlerimiz hakkında sorularınız için bizimle <a href="mailto:support@supaops.com" style={{ color: "var(--primary)" }}>support@supaops.com</a> adresi üzerinden iletişime geçebilirsiniz.</p>
+        <p>Gizlilik süreçlerimiz hakkında sorularınız için bizimle <a href="mailto:support@baseup.dev" style={{ color: "var(--primary)" }}>support@baseup.dev</a> adresi üzerinden iletişime geçebilirsiniz.</p>
       </section>
     </article>
   );
