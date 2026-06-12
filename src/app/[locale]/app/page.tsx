@@ -50,31 +50,7 @@ export default async function DashboardPage() {
         <DashboardStats jobsPromise={jobsPromise} limit={limit} copy={copy} />
       </Suspense>
 
-      <section className="panel" style={{ marginBottom: 18 }}>
-        <div className="page-head">
-          <div>
-            <h2>{copy.dashboard.servicesTitle}</h2>
-            <p className="muted">{copy.dashboard.servicesDescription}</p>
-          </div>
-        </div>
-        <div className="module-grid">
-          {modules.map(module => {
-            const Icon = module.icon;
-            return (
-              <article className="module-card" key={module.id}>
-                <Icon />
-                <div>
-                  <h3>{module.title}</h3>
-                  <p>{module.description}</p>
-                </div>
-                <div className="meta-row">
-                  <span className="tag">{module.badge}</span>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
+
 
       <Suspense fallback={<section className="panel"><div className="page-head"><div><h2>{copy.dashboard.recentJobs}</h2><p className="muted">Yükleniyor...</p></div></div></section>}>
         <RecentJobs jobsPromise={jobsPromise} locale={locale} copy={copy} />

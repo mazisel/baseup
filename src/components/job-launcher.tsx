@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, CheckCircle2, Play, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Play, ShieldCheck, Info } from "lucide-react";
 import { getModules } from "@/lib/constants";
 import { getCopy } from "@/lib/i18n";
 import type { Locale } from "@/lib/preference-shared";
@@ -12,6 +12,37 @@ const DEFAULT_TYPE: MigrationModuleType = "self_hosted_migration";
 const STEP_ORDER = ["package", "details", "options"] as const;
 
 type LauncherStep = typeof STEP_ORDER[number];
+
+function FieldTooltip({ text }: { text: string }) {
+  return (
+    <span title={text} style={{ marginLeft: 6, color: 'var(--color-muted, #737373)', cursor: 'help', verticalAlign: 'text-bottom' }}>
+      <Info size={14} />
+    </span>
+  );
+}
+
+function getPreflightWarning(type: MigrationModuleType, locale: Locale) {
+  if (locale === "en") {
+    if (type === "self_hosted_migration" || type === "cloud_to_self_hosted" || type === "clean_install") {
+      return "Target server MUST be a freshly installed Ubuntu 20.04 or 22.04. Ports 22 (SSH), 80, and 443 must be open.";
+    }
+    if (type === "prod_to_local") {
+      return "Source server must be accessible via SSH. Data will be anonymized for security.";
+    }
+    return null;
+  }
+  
+  if (type === "self_hosted_migration" || type === "cloud_to_self_hosted" || type === "clean_install") {
+    return "Hedef sunucu mutlaka yeni kurulmuş (boş) bir Ubuntu 20.04 veya 22.04 olmalıdır. 22 (SSH), 80 ve 443 portları dışarıya açık olmalıdır.";
+  }
+  if (type === "prod_to_local") {
+    return "Kaynak sunucuya SSH ile erişilebilmelidir. Kişisel veriler güvenlik amacıyla maskelenecektir.";
+  }
+  if (type === "setup_automated_backup") {
+    return "Hedef sunucuda Supabase halihazırda çalışıyor olmalıdır. S3/R2 uyumlu bir depolama sağlayıcısı kullanmalısınız.";
+  }
+  return null;
+}
 
 export function JobLauncher({ initialType, locale }: { initialType?: MigrationModuleType; locale: Locale }) {
   const router = useRouter();
@@ -204,6 +235,12 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
           <ShieldCheck size={16} /> {copy.launcher.secretNotice}
         </div>
 
+        {getPreflightWarning(type, locale) && (
+          <div className="notice" style={{ backgroundColor: "var(--color-warning-bg, #fff8e1)", color: "var(--color-warning-text, #856404)", border: "1px solid var(--color-warning-border, #ffeeba)" }}>
+            <Info size={16} /> {getPreflightWarning(type, locale)}
+          </div>
+        )}
+
         <div className="form-grid">
           {needsSource(type) ? (
             <>
@@ -238,11 +275,17 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
           {needsTarget(type) ? (
             <>
               <div className="field">
-                <label htmlFor="targetHost">{copy.launcher.targetHost}</label>
+                <label htmlFor="targetHost">
+                  {copy.launcher.targetHost}
+                  <FieldTooltip text={locale === "tr" ? "Ubuntu sunucunuzun IP adresi (örn: 192.168.1.1)" : "IP address of your Ubuntu server"} />
+                </label>
                 <input id="targetHost" name="targetHost" placeholder="5.6.7.8" />
               </div>
               <div className="field">
-                <label htmlFor="targetPass">{copy.launcher.targetPass}</label>
+                <label htmlFor="targetPass">
+                  {copy.launcher.targetPass}
+                  <FieldTooltip text={locale === "tr" ? "Root kullanıcısının şifresi. SSH Key kullanıyorsanız parolalı giriş açık olmalıdır." : "Root user password."} />
+                </label>
                 <input id="targetPass" name="targetPass" type="password" autoComplete="off" />
               </div>
             </>
@@ -263,11 +306,17 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
                 <h4>Instance 1 Domains</h4>
                 <div className="form-subgrid">
                   <div className="field">
-                    <label htmlFor="studioDomain">{copy.launcher.studioDomain}</label>
+                    <label htmlFor="studioDomain">
+                      {copy.launcher.studioDomain}
+                      <FieldTooltip text={locale === "tr" ? "Supabase arayüzü için alt alan adı (örn: studio.sirketiniz.com). DNS yönlendirmesi yapılmış olmalıdır." : "Subdomain for Supabase Studio (e.g. studio.example.com)."} />
+                    </label>
                     <input id="studioDomain" name="studioDomain" placeholder="studio.example.com" />
                   </div>
                   <div className="field">
-                    <label htmlFor="apiDomain">{copy.launcher.apiDomain}</label>
+                    <label htmlFor="apiDomain">
+                      {copy.launcher.apiDomain}
+                      <FieldTooltip text={locale === "tr" ? "API istekleri için alt alan adı (örn: api.sirketiniz.com). DNS yönlendirmesi yapılmış olmalıdır." : "Subdomain for API requests (e.g. api.example.com)."} />
+                    </label>
                     <input id="apiDomain" name="apiDomain" placeholder="api.example.com" />
                   </div>
                 </div>
@@ -306,16 +355,25 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
               )}
 
               <div className="field">
-                <label htmlFor="siteUrl">{copy.launcher.siteUrl}</label>
+                <label htmlFor="siteUrl">
+                  {copy.launcher.siteUrl}
+                  <FieldTooltip text={locale === "tr" ? "Frontend uygulamanızın adresi (Auth redirect vb. için kullanılır, örn: https://uygulamam.com)" : "Your frontend application URL for Auth redirects."} />
+                </label>
                 <input id="siteUrl" name="siteUrl" placeholder="https://app.example.com" />
               </div>
               <div className="field">
-                <label htmlFor="certbotEmail">{copy.launcher.certbotEmail}</label>
+                <label htmlFor="certbotEmail">
+                  {copy.launcher.certbotEmail}
+                  <FieldTooltip text={locale === "tr" ? "SSL sertifikası süre sonu uyarıları için Let's Encrypt'e verilecek e-posta adresi." : "Email for Let's Encrypt SSL expiry warnings."} />
+                </label>
                 <input id="certbotEmail" name="certbotEmail" type="email" placeholder="admin@example.com" />
               </div>
               {type !== "settings_update" ? (
                 <div className="field">
-                  <label htmlFor="dashboardPass">{copy.launcher.dashboardPass}</label>
+                  <label htmlFor="dashboardPass">
+                    {copy.launcher.dashboardPass}
+                    <FieldTooltip text={locale === "tr" ? "Kurulum tamamlandığında Supabase Studio'ya girerken kullanacağınız kendi belirlediğiniz şifre." : "The password you will use to log into Supabase Studio after installation."} />
+                  </label>
                   <input id="dashboardPass" name="dashboardPass" type="password" autoComplete="new-password" placeholder={copy.launcher.dashboardPassHint} />
                 </div>
               ) : null}
@@ -357,7 +415,10 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
                   <input id="s3Region" name="s3Region" placeholder="eu-central-1" />
                 </div>
                 <div className="field full">
-                  <label htmlFor="s3Endpoint">Custom Endpoint (Optional)</label>
+                  <label htmlFor="s3Endpoint">
+                    Custom Endpoint (Optional)
+                    <FieldTooltip text={locale === "tr" ? "Cloudflare R2 veya MinIO gibi AWS dışı S3 uyumlu bir depo kullanıyorsanız doldurun." : "Fill if using a non-AWS S3 compatible storage like Cloudflare R2 or MinIO."} />
+                  </label>
                   <input id="s3Endpoint" name="s3Endpoint" placeholder="https://<account_id>.r2.cloudflarestorage.com" />
                 </div>
                 <div className="field full">
