@@ -2713,7 +2713,7 @@ app.post('/api/migrate', async (req, res) => {
 		         (docker compose down -v --remove-orphans >/dev/null 2>&1 || true) &&
 		         echo "Eski DB verisi temizleniyor (yeni POSTGRES_PASSWORD ile sıfırdan init için)..." &&
 		         rm -rf ${tgtDir}/docker/volumes/db/data &&
-		         docker compose up -d --no-deps db &&
+		         docker compose up -d --quiet-pull --no-deps db &&
 	         echo "DB başlatılıyor (ilk init birkaç dakika sürebilir)..." &&
 	         db_ready=0 &&
 	         stable=0 &&
@@ -3029,7 +3029,7 @@ app.post('/api/migrate', async (req, res) => {
 		             sed -i -E "s#image:[[:space:]]*public[.]ecr[.]aws/supabase/vector:#image: timberio/vector:#g" docker-compose.yml &&
 		             sed -i -E "s#image:[[:space:]]*public[.]ecr[.]aws/supabase/#image: supabase/#g" docker-compose.yml;
 		           fi &&
-		           docker compose up -d &&
+		           docker compose up -d --quiet-pull &&
 	           sleep 10 &&
 	           docker ps --format "table {{.Names}}\t{{.Status}}"`,
           sessionId
@@ -3516,7 +3516,7 @@ SQL
                   const storageHealCode = await sshExecStream(targetHost, targetPass,
                     `cd ${tgtDir}/docker &&
                      echo '${healOverrideB64}' | base64 -d > docker-compose.override.yml &&
-                     docker compose up -d --force-recreate --no-deps storage &&
+                     docker compose up -d --quiet-pull --force-recreate --no-deps storage &&
                      sleep 12 &&
                      docker compose ps storage`,
                     sessionId
@@ -3684,6 +3684,33 @@ SQL
         }
       }
 
+      // Studio girişi uçtan uca doğrulama: nginx (htpasswd) ve Kong (.env) katmanları
+      // farklı şifre beklerse kullanıcı hiçbir şifreyle giremez. Test et, gerekirse eşitle.
+      try {
+        const dashPassShell = String(env.DASHBOARD_PASSWORD || '').replace(/'/g, "'\\''");
+        const verifyCode = await sshExecStream(targetHost, targetPass,
+          `code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 20 -u 'admin:${dashPassShell}' "https://localhost/" -H "Host: ${studioDomain}");
+           echo "Studio giriş testi: HTTP $code";
+           if [ "$code" = "401" ] || [ "$code" = "403" ]; then
+             echo "Kimlik katmanları uyumsuz görünüyor; htpasswd hedefteki .env ile eşitleniyor...";
+             EFF=$(grep "^DASHBOARD_PASSWORD=" ${tgtDir}/docker/.env 2>/dev/null | tail -n 1 | cut -d= -f2-);
+             if [ -n "$EFF" ]; then htpasswd -b /etc/nginx/.htpasswd admin "$EFF" >/dev/null 2>&1 && (systemctl reload nginx >/dev/null 2>&1 || true); fi;
+             code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 20 -u "admin:$EFF" "https://localhost/" -H "Host: ${studioDomain}");
+             echo "Studio giriş testi (eşitleme sonrası): HTTP $code";
+           fi;
+           case "$code" in 200|301|302|303|307|308) exit 0;; *) exit 7;; esac`,
+          sessionId,
+          optionalStreamOptions('Studio giriş doğrulama adımı')
+        );
+        if (verifyCode === 0) {
+          log('🔐 Studio giriş doğrulaması başarılı: admin + aşağıdaki şifre kabul edildi', 'success');
+        } else {
+          log('⚠️ Studio giriş doğrulaması BAŞARISIZ — aşağıdaki şifre çalışmayabilir. Sunucuda kontrol edin: grep DASHBOARD ' + tgtDir + '/docker/.env', 'warn');
+        }
+      } catch (verifyErr) {
+        log(`⚠️ Studio giriş doğrulaması yapılamadı (non-kritik): ${verifyErr.message}`, 'warn');
+      }
+
       log('\n✅ MİGRATION BAŞARIYLA TAMAMLANDI!', 'success');
       log(`🌐 Studio: https://${studioDomain}`, 'success');
       log(`🔌 API:    https://${apiDomain}`, 'success');
@@ -3813,8 +3840,8 @@ app.post('/api/clean-install', async (req, res) => {
       step('ADIM 3/4 — Supabase servisleri başlatılıyor');
       const startCode = await sshExecStream(targetHost, targetPass,
         `cd ${tgtDir}/docker &&
-         docker compose pull &&
-         docker compose up -d`,
+         docker compose pull -q &&
+         docker compose up -d --quiet-pull`,
         sessionId
       );
       if (startCode !== 0) throw new Error(`Supabase başlatılamadı (exit: ${startCode}).`);
@@ -3954,7 +3981,7 @@ sed -i 's|public.ecr.aws/supabase/logflare:|supabase/logflare:|g' docker-compose
 sed -i 's|public.ecr.aws/supabase/supavisor:|supabase/supavisor:|g' docker-compose.yml && \
 sed -i 's|public.ecr.aws/supabase/vector:|timberio/vector:|g' docker-compose.yml && \
 sed -i 's|public.ecr.aws/supabase/pgbouncer:|supabase/pgbouncer:|g' docker-compose.yml && \
-docker compose pull db && docker compose up -d db && \
+docker compose pull -q db && docker compose up -d --quiet-pull db && \
 echo "DB başlatılıyor (ilk init birkaç dakika sürebilir)..." && \
 db_ready=0 && \
 stable=0 && \
@@ -4147,7 +4174,7 @@ echo "DB hazır ✅"`,
         );
       } else {
         const startAllCode = await sshExecStream(targetHost, targetPass,
-          `cd ${tgtDir}/docker && docker compose pull && docker compose up -d`,
+          `cd ${tgtDir}/docker && docker compose pull -q && docker compose up -d --quiet-pull`,
           sessionId,
           { stepLabel: 'Servisleri Başlatma' }
         );
@@ -5076,7 +5103,7 @@ app.post('/api/upgrade-supabase', async (req, res) => {
       await sshExecStream(targetHost, targetPass, `cd ${tgtDir} && git fetch --tags && ${versionCmd}`, sessionId, { stepLabel: 'Versiyon Güncelleme' });
       
       step('Containerlar güncelleniyor');
-      await sshExecStream(targetHost, targetPass, `cd ${tgtDir}/docker && docker compose pull && docker compose up -d`, sessionId, { stepLabel: 'Docker Update' });
+      await sshExecStream(targetHost, targetPass, `cd ${tgtDir}/docker && docker compose pull -q && docker compose up -d --quiet-pull`, sessionId, { stepLabel: 'Docker Update' });
       
       log('\n✅ Supabase güncellendi!', 'success');
       closeSseSession(sessionId, { type: 'done' });

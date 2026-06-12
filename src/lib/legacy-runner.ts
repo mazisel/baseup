@@ -106,6 +106,15 @@ async function runJsonLegacyJob(
   await addLog(jobId, "info", JSON.stringify(data).slice(0, 1800));
 }
 
+// Docker pull katman ilerlemesi ("a1b2c3 Downloading 114.3MB" gibi) saniyede onlarca
+// satır üretir: job_events tablosunu şişirir ve Supabase Realtime'ı boğar. Bu satırlar
+// işlevsel bilgi taşımadığı için loglanmaz; pull başlangıç/bitiş mesajları geçer.
+const DOCKER_PULL_PROGRESS_PATTERN = /^[0-9a-f]{10,12}:?\s+(Pulling fs layer|Waiting|Downloading|Verifying Checksum|Download complete|Extracting|Pull complete|Already exists)/i;
+
+function isNoiseLogLine(message: string) {
+  return DOCKER_PULL_PROGRESS_PATTERN.test(message.trim());
+}
+
 async function readLegacySse(jobId: string, url: URL, addLog: LogFn) {
   const response = await fetchWithTimeout(url, {
     headers: {
@@ -138,7 +147,7 @@ async function readLegacySse(jobId: string, url: URL, addLog: LogFn) {
       if (payload.type === "error") throw new Error(payload.msg || "Legacy job hata verdi.");
 
       const level = normalizeLegacyLevel(payload.type || payload.level);
-      if (payload.msg) await addLog(jobId, level, payload.msg);
+      if (payload.msg && !isNoiseLogLine(payload.msg)) await addLog(jobId, level, payload.msg);
     }
   }
 }

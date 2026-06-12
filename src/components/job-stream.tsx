@@ -72,6 +72,34 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
     shell.scrollTop = shell.scrollHeight;
   }, [logs]);
 
+  const isTerminal = job.status === "success" || job.status === "error" || job.status === "cancelled";
+
+  // Realtime kanalı yoğun log akışında mesaj düşürebiliyor (canlı akış "donuyor").
+  // Çalışırken periyodik olarak, iş bitince de son bir kez tüm logları DB'den çekip
+  // ekrandakini tamamla — erişim bilgileri gibi son satırlar asla kaybolmasın.
+  useEffect(() => {
+    let cancelled = false;
+    async function backfillLogs() {
+      const { data } = await supabase
+        .from("job_events")
+        .select("*")
+        .eq("job_id", initialJob.id)
+        .order("created_at", { ascending: true });
+      if (data && !cancelled) setLogs(data);
+    }
+
+    if (isTerminal) {
+      backfillLogs();
+      return () => { cancelled = true; };
+    }
+
+    const timer = setInterval(backfillLogs, 45_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [isTerminal, initialJob.id, supabase]);
+
   const currentStage = useMemo(() => getCurrentStage(logs), [logs]);
 
   const summaryItems = useMemo(() => {
@@ -128,7 +156,7 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
         ))}
       </div>
 
-      {currentStage ? (
+      {currentStage && !isTerminal ? (
         <div className="stage-strip">
           <span>{locale === "tr" ? "Mevcut aşama" : "Current stage"}</span>
           <strong>{currentStage.label}</strong>
