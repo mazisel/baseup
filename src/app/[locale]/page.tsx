@@ -5,10 +5,10 @@ import { LiveTerminal } from "@/components/live-terminal";
 import { PackageGrid } from "@/components/package-grid";
 import { PreferenceControls } from "@/components/preference-controls";
 import { getCopy } from "@/lib/i18n";
-import { getPreferences } from "@/lib/preferences";
 
-export default async function HomePage() {
-  const { locale, theme } = await getPreferences();
+export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
+  const resolvedParams = await params;
+  const locale = resolvedParams.locale as any;
   const copy = getCopy(locale);
   const benefitIcons = [ShieldCheck, Lock, Activity, Zap];
 
@@ -19,7 +19,7 @@ export default async function HomePage() {
           <BrandLogo name={copy.brand} priority />
         </Link>
         <div className="nav-actions">
-          <PreferenceControls copy={copy.preferences} locale={locale} theme={theme} />
+          <PreferenceControls copy={copy.preferences} locale={locale} />
           <Link className="button secondary" href="/auth/login">{copy.nav.login}</Link>
           <Link className="button primary" href="/app/new-job">
             {copy.nav.openPanel}

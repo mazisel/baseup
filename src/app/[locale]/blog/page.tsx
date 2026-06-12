@@ -1,5 +1,4 @@
 import { getAllPosts } from "@/lib/blog";
-import { getPreferences } from "@/lib/preferences";
 import { getCopy } from "@/lib/i18n";
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
@@ -17,7 +16,6 @@ export default async function BlogIndexPage({
 }) {
   const resolvedParams = await params;
   const locale = resolvedParams.locale;
-  const { theme } = await getPreferences();
   const copy = getCopy(locale as "en" | "tr");
   const posts = getAllPosts();
 
@@ -28,7 +26,7 @@ export default async function BlogIndexPage({
           <BrandLogo name={copy.brand} priority />
         </Link>
         <div className="nav-actions">
-          <PreferenceControls copy={copy.preferences} locale={locale as "en" | "tr"} theme={theme} />
+          <PreferenceControls copy={copy.preferences} locale={locale as "en" | "tr"} />
           <Link href={`/${locale}/auth/login`} className="button secondary">
             {copy.nav.login}
           </Link>

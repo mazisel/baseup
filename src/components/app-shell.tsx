@@ -38,7 +38,7 @@ export function AppShell({
             <div className="muted">{roleLabel} · {user.plan}</div>
           </div>
           <div className="nav-actions">
-            <PreferenceControls copy={copy.preferences} locale={locale} theme={theme} />
+            <PreferenceControls copy={copy.preferences} locale={locale} />
             <div className="user-chip">
               <span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span>
               <span>{user.email}</span>

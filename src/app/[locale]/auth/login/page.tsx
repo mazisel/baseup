@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { LoginForm } from "@/components/login-form";
 import { getCopy } from "@/lib/i18n";
-import { getPreferences } from "@/lib/preferences";
 
 export const metadata: Metadata = {
   title: "Giriş Yap",
 };
 
-export default async function LoginPage() {
-  const { locale } = await getPreferences();
+export default async function LoginPage({ params }: { params: Promise<{ locale: string }> }) {
+  const resolvedParams = await params;
+  const locale = resolvedParams.locale as any;
   const copy = getCopy(locale);
 
   return (

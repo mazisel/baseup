@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Languages, Moon, Sun } from "lucide-react";
 import type { Locale, Theme } from "@/lib/preference-shared";
 import { LOCALE_COOKIE, THEME_COOKIE } from "@/lib/preference-shared";
@@ -18,14 +18,19 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 export function PreferenceControls({
   locale,
-  theme,
   copy
 }: {
   locale: Locale;
-  theme: Theme;
   copy: PreferenceCopy;
 }) {
-  const [activeTheme, setActiveTheme] = useState(theme);
+  const [activeTheme, setActiveTheme] = useState<Theme>("light");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const match = document.cookie.match(new RegExp('(^| )theme=([^;]+)'));
+    if (match) setActiveTheme(match[2] as Theme);
+  }, []);
 
   function setCookie(name: string, value: string) {
     document.cookie = `${name}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
@@ -63,7 +68,8 @@ export function PreferenceControls({
           {copy.english}
         </button>
       </div>
-      <div className="segmented" aria-label={copy.theme}>
+      {mounted && (
+        <div className="segmented" aria-label={copy.theme}>
         <button
           aria-label={copy.light}
           aria-pressed={activeTheme === "light"}
@@ -83,6 +89,7 @@ export function PreferenceControls({
           <Moon size={15} />
         </button>
       </div>
+      )}
     </div>
   );
 }

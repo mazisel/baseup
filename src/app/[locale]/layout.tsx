@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { getPreferences } from "@/lib/preferences";
 import "../globals.css";
 
 export const metadata: Metadata = {
@@ -47,11 +46,14 @@ export const metadata: Metadata = {
 import NextTopLoader from "nextjs-toploader";
 
 export default async function RootLayout({
-  children
-}: Readonly<{
+  children,
+  params
+}: {
   children: React.ReactNode;
-}>) {
-  const { locale, theme } = await getPreferences();
+  params: Promise<{ locale: string }>;
+}) {
+  const resolvedParams = await params;
+  const locale = resolvedParams.locale;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -75,8 +77,19 @@ export default async function RootLayout({
   };
 
   return (
-    <html data-theme={theme} lang={locale}>
+    <html lang={locale}>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var match = document.cookie.match(new RegExp('(^| )theme=([^;]+)'));
+                var theme = match ? match[2] : 'light';
+                document.documentElement.setAttribute('data-theme', theme);
+              } catch (e) {}
+            `,
+          }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

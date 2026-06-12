@@ -1,7 +1,6 @@
 import { getPostBySlug, getPostSlugs } from "@/lib/blog";
 import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
-import { getPreferences } from "@/lib/preferences";
 import { getCopy } from "@/lib/i18n";
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
@@ -30,15 +29,15 @@ export default async function BlogPostPage({
   params: Promise<{ locale: string; slug: string }>;
 }) {
   const resolvedParams = await params;
-  const { locale, slug } = resolvedParams;
+  const locale = resolvedParams.locale as "en" | "tr";
+  const slug = resolvedParams.slug;
   const post = getPostBySlug(slug);
 
   if (!post) {
     notFound();
   }
 
-  const { theme } = await getPreferences();
-  const copy = getCopy(locale as "en" | "tr");
+  const copy = getCopy(locale);
 
   return (
     <div className="site-shell">
@@ -47,7 +46,7 @@ export default async function BlogPostPage({
           <BrandLogo name={copy.brand} priority />
         </Link>
         <div className="nav-actions">
-          <PreferenceControls copy={copy.preferences} locale={locale as "en" | "tr"} theme={theme} />
+          <PreferenceControls copy={copy.preferences} locale={locale} />
           <Link href={`/${locale}/auth/login`} className="button secondary">
             {copy.nav.login}
           </Link>
