@@ -576,20 +576,28 @@ export function MonitorsClient({ locale }: { locale: Locale }) {
 
         .monitor-timeline {
           align-items: end;
-          background: var(--surface-strong);
+          background: var(--surface);
           border: 1px solid var(--line);
           border-radius: 8px;
           display: grid;
-          gap: 3px;
-          grid-template-columns: repeat(24, minmax(4px, 1fr));
-          height: 58px;
-          padding: 8px;
+          gap: 2px;
+          grid-template-columns: repeat(60, minmax(2px, 1fr));
+          height: 64px;
+          padding: 12px 8px 8px 8px;
         }
 
         .monitor-bar {
           align-self: end;
-          border-radius: 999px 999px 3px 3px;
-          min-height: 10px;
+          border-radius: 2px;
+          min-height: 4px;
+          transition: opacity 0.2s, transform 0.2s;
+          cursor: pointer;
+        }
+
+        .monitor-bar:hover {
+          opacity: 0.8;
+          transform: scaleY(1.1);
+          transform-origin: bottom;
         }
 
         .monitor-bar.up {
@@ -602,7 +610,7 @@ export function MonitorsClient({ locale }: { locale: Locale }) {
 
         .monitor-bar.empty {
           background: var(--surface-muted);
-          opacity: 0.72;
+          opacity: 0.4;
         }
 
         .monitor-metric-grid {
@@ -849,7 +857,7 @@ function MonitorCard({
   const { monitor } = insight;
   const latestEvent = insight.events[0];
   const latestError = latestEvent?.errorMessage;
-  const emptySlots = Math.max(0, 24 - insight.timeline.length);
+  const emptySlots = Math.max(0, 60 - insight.timeline.length);
 
   return (
     <article className={`monitor-card ${monitor.status}`}>
@@ -1012,7 +1020,7 @@ function buildMonitorInsight(monitor: HealthMonitor): MonitorInsight {
     latestResponseMs: events[0]?.responseTimeMs ?? null,
     incidentCount: countIncidents(ascendingEvents),
     stableChecks,
-    timeline: events.slice(0, 24).reverse(),
+    timeline: events.slice(0, 60).reverse(),
     timelineMaxMs: Math.max(...responseTimes, 1),
     lastSignalAt: monitor.lastCheckedAt || events[0]?.createdAt,
   };
@@ -1098,7 +1106,7 @@ function getTimelineHeight(event: HealthEvent, maxMs: number) {
   if (event.status === "down") return 42;
   if (typeof event.responseTimeMs !== "number") return 18;
   const ratio = Math.min(event.responseTimeMs / Math.max(maxMs, 1), 1);
-  return Math.round(18 + ratio * 28);
+  return Math.round(10 + ratio * 32);
 }
 
 function formatPercent(value: number | null) {

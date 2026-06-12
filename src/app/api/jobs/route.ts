@@ -53,13 +53,15 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
+  const normalizedInput = normalizeJobInput(input);
+
   try {
     const quota = await checkJobQuota(user, locale);
     if (!quota.ok) {
       return NextResponse.json({ error: quota.error }, { status: quota.status });
     }
 
-    const job = await createJob(input, user, locale);
+    const job = await createJob(normalizedInput, user, locale);
     return NextResponse.json({ job }, { status: 201 });
   } catch (error) {
     if (error instanceof JobQueueUnavailableError) {
@@ -71,4 +73,20 @@ export async function POST(request: Request) {
       error: locale === "tr" ? "İş oluşturulamadı. Lütfen tekrar deneyin." : "Failed to create the job. Please try again."
     }, { status: 500 });
   }
+}
+
+function normalizeJobInput(input: JobRequestInput): JobRequestInput {
+  if (!requiresExplicitDataMigration(input.type)) return input;
+
+  const migrateData = input.migrateData === true;
+  return {
+    ...input,
+    migrateData,
+    migrateStorage: migrateData && input.migrateStorage === true,
+    skipData: !migrateData,
+  };
+}
+
+function requiresExplicitDataMigration(type: JobRequestInput["type"]) {
+  return type === "self_hosted_migration" || type === "cloud_to_self_hosted";
 }

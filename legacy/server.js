@@ -2279,7 +2279,8 @@ app.post('/api/migrate', async (req, res) => {
     getSSL,
     setupBackup,   // true → Kaynaktaki rclone ve cron yedeklerini taşı
     certbotEmail,  // Let's Encrypt için e-posta
-    schemaOnly,    // true → sadece şema + bucket tanımları, false → tam veri
+    schemaOnly: requestedSchemaOnly, // true → sadece şema + bucket tanımları, false → tam veri
+    skipData,
     continueOnMinorErrors,
     preserveSourceKeys,  // true → kaynak JWT/ANON/SERVICE_ROLE anahtarlarını koru
     resume,              // true → checkpoint varsa tamamlanmış ağır adımları atla
@@ -2287,6 +2288,7 @@ app.post('/api/migrate', async (req, res) => {
     targetInstance
   } = req.body;
   
+  const schemaOnly = Boolean(requestedSchemaOnly || skipData);
   const tgtDir = getInstanceDir(targetInstance);
 
   res.json({ success: true, message: 'Migration başlatıldı' });
@@ -3978,9 +3980,12 @@ app.post('/api/migrate-from-cloud', (req, res) => {
     migrateStorage,
     cloudApiUrl,
     cloudServiceKey,
+    schemaOnly: requestedSchemaOnly,
+    skipData,
     targetInstance
   } = req.body;
 
+  const schemaOnly = Boolean(requestedSchemaOnly || skipData);
   const tgtDir = getInstanceDir(targetInstance);
 
   if (!cloudUrl || !targetHost || !targetPass) {
@@ -3989,7 +3994,7 @@ app.post('/api/migrate-from-cloud', (req, res) => {
   if (!skipInstall && (!apiDomain || !studioDomain || !env)) {
     return res.status(400).json({ error: 'Eksik parametre (Domain veya Env)!' });
   }
-  if (migrateStorage && (!cloudApiUrl || !cloudServiceKey)) {
+  if (!schemaOnly && migrateStorage && (!cloudApiUrl || !cloudServiceKey)) {
     return res.status(400).json({ error: 'Storage taşıma için Cloud API URL ve Service Role Key gereklidir!' });
   }
 
@@ -4091,9 +4096,14 @@ echo "DB hazır ✅"`,
         if (checkDbCode !== 0) throw new Error('Kurulum atlandı ancak hedef sunucuda `supabase-${targetInstance}-db` konteyneri bulunamadı veya çalışmıyor!');
       }
 
-      step('Adım 4: Supabase Cloud\'dan veri çekiliyor (PostgreSQL 17 Client İle)');
+      step(schemaOnly
+        ? 'Adım 4: Supabase Cloud şeması çekiliyor (PostgreSQL 17 Client ile)'
+        : 'Adım 4: Supabase Cloud\'dan veri çekiliyor (PostgreSQL 17 Client İle)'
+      );
+      log(schemaOnly ? '📐 Sadece şema kopyalanacak — veriler aktarılmayacak' : '📦 Tüm veriler dahil kopyalanıyor', 'warn');
+      const cloudDumpMode = schemaOnly ? '--schema-only' : '--inserts';
       const dumpCode = await sshExecStream(targetHost, targetPass,
-        `docker run --rm -i postgres:17-alpine pg_dump -d "${cloudUrl}" --clean --if-exists --inserts --no-owner --no-privileges --quote-all-identifiers --exclude-schema=graphql --exclude-schema=graphql_public --exclude-schema=net --exclude-schema=pgsodium --exclude-schema=pgsodium_masks --exclude-schema=pgtle --exclude-schema=repack --exclude-schema=realtime --exclude-schema=supabase_functions --exclude-schema=supabase_migrations --exclude-schema=tiger --exclude-schema=topology --exclude-schema=vault > ${tgtDir}/cloud_dump.sql 2> ${tgtDir}/cloud_dump_error.log || (cat ${tgtDir}/cloud_dump_error.log >&2 && exit 1)`,
+        `docker run --rm -i postgres:17-alpine pg_dump -d "${cloudUrl}" --clean --if-exists ${cloudDumpMode} --no-owner --no-privileges --quote-all-identifiers --exclude-schema=graphql --exclude-schema=graphql_public --exclude-schema=net --exclude-schema=pgsodium --exclude-schema=pgsodium_masks --exclude-schema=pgtle --exclude-schema=repack --exclude-schema=realtime --exclude-schema=supabase_functions --exclude-schema=supabase_migrations --exclude-schema=tiger --exclude-schema=topology --exclude-schema=vault > ${tgtDir}/cloud_dump.sql 2> ${tgtDir}/cloud_dump_error.log || (cat ${tgtDir}/cloud_dump_error.log >&2 && exit 1)`,
         sessionId,
         { stepLabel: 'Cloud Yedekleme' }
       );
@@ -4282,7 +4292,11 @@ echo "DB hazır ✅"`,
         }
       }
 
-      if (migrateStorage && cloudApiUrl && cloudServiceKey) {
+      if (schemaOnly && migrateStorage) {
+        log('ℹ️ Şema modunda storage dosyaları taşınmıyor.', 'warn');
+      }
+
+      if (!schemaOnly && migrateStorage && cloudApiUrl && cloudServiceKey) {
         step('Adım 9: Storage dosyaları (Fiziksel Dosyalar) taşınıyor');
         log('Geçici Storage Taşıma aracı (Node.js) hedef sunucuda çalıştırılıyor...');
 

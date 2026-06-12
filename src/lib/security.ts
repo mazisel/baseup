@@ -48,6 +48,7 @@ export function buildSafeSummary(input: JobRequestInput, runnerMode: "dry-run" |
     .filter(Boolean);
 
   const flags = [
+    usesMigrationDataMode(input.type) ? (input.migrateData ? "Data transfer" : "Schema only") : "",
     input.getSSL ? "SSL" : "",
     input.setupBackup ? "Backup transfer" : "",
     input.migrateStorage ? "Storage transfer" : "",
@@ -66,6 +67,10 @@ export function buildSafeSummary(input: JobRequestInput, runnerMode: "dry-run" |
     flags,
     runnerMode
   };
+}
+
+function usesMigrationDataMode(type: JobRequestInput["type"]) {
+  return type === "self_hosted_migration" || type === "cloud_to_self_hosted";
 }
 
 function normalizeHost(host: string) {

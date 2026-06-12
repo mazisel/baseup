@@ -91,6 +91,8 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
 
     const form = new FormData(event.currentTarget);
     const settingsUpdates = parseSettingsUpdates(String(form.get("settingsUpdates") || ""));
+    const canMigrateData = ["self_hosted_migration", "cloud_to_self_hosted"].includes(type);
+    const migrateData = canMigrateData && form.get("migrateData") === "on";
     const payload: JobRequestInput = {
       type,
       sourceHost: String(form.get("sourceHost") || ""),
@@ -113,13 +115,14 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
       certbotEmail: String(form.get("certbotEmail") || ""),
       getSSL: form.get("getSSL") === "on",
       setupBackup: form.get("setupBackup") === "on",
-      migrateStorage: form.get("migrateStorage") === "on",
+      migrateStorage: migrateData && form.get("migrateStorage") === "on",
       continueOnMinorErrors: form.get("continueOnMinorErrors") === "on",
       skipInstall: form.get("skipInstall") === "on",
       preserveSourceKeys: form.get("preserveSourceKeys") === "on",
       resume: form.get("resume") === "on",
       cleanupOnFailure: form.get("cleanupOnFailure") === "on",
-      skipData: form.get("skipData") === "on",
+      migrateData,
+      skipData: canMigrateData ? !migrateData : false,
       settingsUpdates,
       s3AccessKey: String(form.get("s3AccessKey") || ""),
       s3SecretKey: String(form.get("s3SecretKey") || ""),
@@ -524,8 +527,8 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
           )}
           {["self_hosted_migration", "cloud_to_self_hosted"].includes(type) && (
             <label className="toggle-row option-card">
-              <input name="skipData" type="checkbox" />
-              <span>{copy.launcher.skipData}</span>
+              <input name="migrateData" type="checkbox" />
+              <span>{copy.launcher.migrateData}</span>
             </label>
           )}
           {type === "prod_to_local" && (

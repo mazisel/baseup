@@ -127,6 +127,8 @@ export type JobRequestInput = {
   // Hedefte önceki çalışmanın checkpoint'i varsa tamamlanmış ağır adımları atla.
   resume?: boolean;
   cleanupOnFailure?: boolean;
+  // Veri aktarımı yalnızca kullanıcı açıkça seçtiğinde çalışır; aksi halde şema modu.
+  migrateData?: boolean;
   skipData?: boolean;
   settingsUpdates?: Record<string, string>;
   

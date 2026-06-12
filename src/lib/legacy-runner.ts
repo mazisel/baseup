@@ -209,6 +209,8 @@ function buildLegacyBody(input: JobRequestInput, sessionId: string) {
         cleanupOnFailure: input.cleanupOnFailure,
         targetInstance: input.targetInstance || "1",
         anonymizeData: input.anonymizeData,
+        migrateData: input.migrateData,
+        schemaOnly: input.skipData === true,
         skipData: input.skipData
       };
     case "cloud_to_self_hosted":
@@ -232,6 +234,8 @@ function buildLegacyBody(input: JobRequestInput, sessionId: string) {
         migrateStorage: input.migrateStorage,
         targetInstance: input.targetInstance || "1",
         anonymizeData: input.anonymizeData,
+        migrateData: input.migrateData,
+        schemaOnly: input.skipData === true,
         skipData: input.skipData
       };
     case "clean_install":

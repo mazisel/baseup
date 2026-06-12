@@ -38,7 +38,14 @@ export function PreferenceControls({
 
   function changeLocale(nextLocale: Locale) {
     setCookie(LOCALE_COOKIE, nextLocale);
-    window.location.reload();
+    const { pathname, search, hash } = window.location;
+    const pathParts = pathname.split('/');
+    if (pathParts[1] === locale) {
+      pathParts[1] = nextLocale;
+      window.location.href = pathParts.join('/') + search + hash;
+    } else {
+      window.location.reload();
+    }
   }
 
   function changeTheme(nextTheme: Theme) {
