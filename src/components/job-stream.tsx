@@ -28,25 +28,61 @@ type JobRunRow = {
 
 export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: Locale }) {
   const [job, setJob] = useState(initialJob);
-  // initialJob.logs might be empty now because the server getJob doesn't fetch logs yet, we need to handle that or fetch logs on mount
   const [logs, setLogs] = useState<JobEventRow[]>([]);
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState("");
   const logShellRef = useRef<HTMLDivElement>(null);
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const cursorRef = useRef<string | null>(null);
   const copy = getCopy(locale);
   const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => {
-    // Fetch initial logs
-    supabase.from("job_events").select("*").eq("job_id", initialJob.id).order("created_at", { ascending: true })
-      .then(({ data }) => {
-        if (data) setLogs(data);
-      });
+  const isTerminal = job.status === "success" || job.status === "error" || job.status === "cancelled";
 
-    // Subscribe to realtime updates for this job
-    const channel = supabase.channel(`job_${initialJob.id}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "job_runs", filter: `id=eq.${initialJob.id}` }, (payload) => {
-        const row = payload.new as JobRunRow;
+  // Supabase Realtime yoğun log akışında mesaj düşürdüğü için canlı akış "donuyordu".
+  // Bunun yerine job_events'i kısa aralıklarla artımlı olarak çekiyoruz (id ile tekilleştirme):
+  // garantili, sıralı ve gerçek zamanlıya yakın. İş bitince son bir tam çekim daha yapılır.
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    async function poll() {
+      // Yalnızca son imleçten sonraki olayları çek (artımlı). Aynı saniyedeki
+      // satırların kaçmaması için gte + id ile tekilleştirme kullanılır.
+      let query = supabase
+        .from("job_events")
+        .select("*")
+        .eq("job_id", initialJob.id)
+        .order("created_at", { ascending: true });
+      if (cursorRef.current) query = query.gte("created_at", cursorRef.current);
+
+      const { data: events } = await query;
+
+      if (cancelled) return;
+
+      if (events && events.length) {
+        const seen = seenIdsRef.current;
+        const fresh = (events as JobEventRow[]).filter(e => !seen.has(e.id));
+        if (fresh.length) {
+          fresh.forEach(e => seen.add(e.id));
+          cursorRef.current = fresh[fresh.length - 1].created_at;
+          setLogs(current => [...current, ...fresh]);
+        }
+      }
+
+      // İş durumunu da güncelle (running → success/error geçişini yakala)
+      const { data: jobRow } = await supabase
+        .from("job_runs")
+        .select("status, updated_at, started_at, finished_at, error_message")
+        .eq("id", initialJob.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      let terminalNow = false;
+      if (jobRow) {
+        const row = jobRow as JobRunRow;
+        terminalNow = row.status === "success" || row.status === "error" || row.status === "cancelled";
         setJob(prev => ({
           ...prev,
           status: row.status,
@@ -55,14 +91,18 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
           finishedAt: row.finished_at ?? undefined,
           errorMessage: row.error_message ?? undefined,
         }));
-      })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "job_events", filter: `job_id=eq.${initialJob.id}` }, (payload) => {
-        setLogs(current => [...current, payload.new as JobEventRow]);
-      })
-      .subscribe();
+      }
 
+      // İş bittiyse polling'i durdur; çalışıyorsa 1.5 sn sonra tekrar çek.
+      if (!terminalNow && !cancelled) {
+        timer = setTimeout(poll, 1_500);
+      }
+    }
+
+    poll();
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   }, [initialJob.id, supabase]);
 
@@ -71,34 +111,6 @@ export function JobStream({ initialJob, locale }: { initialJob: JobRun; locale: 
     if (!shell) return;
     shell.scrollTop = shell.scrollHeight;
   }, [logs]);
-
-  const isTerminal = job.status === "success" || job.status === "error" || job.status === "cancelled";
-
-  // Realtime kanalı yoğun log akışında mesaj düşürebiliyor (canlı akış "donuyor").
-  // Çalışırken periyodik olarak, iş bitince de son bir kez tüm logları DB'den çekip
-  // ekrandakini tamamla — erişim bilgileri gibi son satırlar asla kaybolmasın.
-  useEffect(() => {
-    let cancelled = false;
-    async function backfillLogs() {
-      const { data } = await supabase
-        .from("job_events")
-        .select("*")
-        .eq("job_id", initialJob.id)
-        .order("created_at", { ascending: true });
-      if (data && !cancelled) setLogs(data);
-    }
-
-    if (isTerminal) {
-      backfillLogs();
-      return () => { cancelled = true; };
-    }
-
-    const timer = setInterval(backfillLogs, 45_000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [isTerminal, initialJob.id, supabase]);
 
   const currentStage = useMemo(() => getCurrentStage(logs), [logs]);
   const credentials = useMemo(() => extractCredentials(logs), [logs]);
