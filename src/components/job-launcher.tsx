@@ -227,7 +227,17 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
           <div>
             <span className="muted">{copy.launcher.selectedPackage}</span>
             <h2>{selectedModule.title}</h2>
-            <p className="muted">{selectedModule.description}</p>
+            <p className="muted" style={{ marginBottom: selectedModule.features?.length ? 12 : 0 }}>{selectedModule.description}</p>
+            {selectedModule.features && selectedModule.features.length > 0 && (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                {selectedModule.features.map((feat: string, idx: number) => (
+                  <li key={idx} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "var(--color-text, #333)" }}>
+                    <CheckCircle2 size={16} style={{ color: "var(--color-primary, #3b82f6)", flexShrink: 0, marginTop: 1 }} />
+                    <span>{feat}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div className="selected-package-meta">
             <SelectedIcon size={22} />
@@ -493,7 +503,17 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
           <div>
             <span className="muted">{copy.launcher.reviewTitle}</span>
             <h2>{selectedModule.title}</h2>
-            <p className="muted">{copy.launcher.reviewDescription}</p>
+            <p className="muted" style={{ marginBottom: selectedModule.features?.length ? 12 : 0 }}>{copy.launcher.reviewDescription}</p>
+            {selectedModule.features && selectedModule.features.length > 0 && (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                {selectedModule.features.map((feat: string, idx: number) => (
+                  <li key={idx} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "var(--color-text, #333)" }}>
+                    <CheckCircle2 size={16} style={{ color: "var(--color-primary, #3b82f6)", flexShrink: 0, marginTop: 1 }} />
+                    <span>{feat}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <span className="tag">{selectedModule.usageUnits} {copy.launcher.credits}</span>
         </div>
