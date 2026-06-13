@@ -3982,6 +3982,8 @@ app.post('/api/migrate-from-cloud', (req, res) => {
     cloudServiceKey,
     schemaOnly: requestedSchemaOnly,
     skipData,
+    continueOnMinorErrors,
+    cleanupOnFailure,
     targetInstance
   } = req.body;
 
@@ -4010,6 +4012,14 @@ app.post('/api/migrate-from-cloud', (req, res) => {
       writeSse(sessionId, { type: 'step', msg });
       console.log(`\n▶ [CLOUD MIGRATE] ${msg}`);
     };
+    // continueOnMinorErrors: kritik olmayan adımlarda (servis restart, API yamaları)
+    // geçici SSH hatalarını uyarıya çevirip akışı sürdür.
+    const optionalStreamOptions = (stepLabel) => continueOnMinorErrors
+      ? { stepLabel, allowContinueOnTransientError: true, continueResult: 0 }
+      : { stepLabel };
+    if (continueOnMinorErrors) {
+      log('⚙️ Geçici SSH sorunlarında opsiyonel adımlar (servis restart, API yamaları) uyarı verip atlanacak.', 'warn');
+    }
 
     try {
       if (!skipInstall) {
@@ -4125,7 +4135,7 @@ echo "DB hazır ✅"`,
 
       step('Adım 5: Alınan yedek hedef veritabanına yükleniyor (Restore)');
       const restoreCode = await sshExecStream(targetHost, targetPass,
-        `docker exec -i supabase-${targetInstance}-db psql -U postgres -d postgres < ${tgtDir}/cloud_dump.sql 2>&1`,
+        `docker exec -i supabase-${targetInstance}-db psql -U supabase_admin -d postgres < ${tgtDir}/cloud_dump.sql 2>&1`,
         sessionId,
         { stepLabel: 'Yedek Geri Yükleme' }
       );
@@ -4138,6 +4148,9 @@ echo "DB hazır ✅"`,
       step('Adım 6: Şema sahiplikleri ve izinleri düzeltiliyor');
       // SQL script using base64 exactly like normal migration
       const permFixSql = [
+        // realtime/mcp rolleri restore'da gelmeyebilir; ownership ALTER'larından ÖNCE
+        // oluştur, aksi halde "role supabase_realtime_admin does not exist" hatası alınır.
+        `DO $rt$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='supabase_realtime_admin') THEN CREATE ROLE supabase_realtime_admin NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='mcp_readonly') THEN CREATE ROLE mcp_readonly NOLOGIN; END IF; END $rt$;`,
         `ALTER SCHEMA auth OWNER TO supabase_auth_admin;`,
         `DO $fix$ DECLARE r RECORD; BEGIN`,
         `  FOR r IN SELECT relname, relkind FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname='auth' AND relkind IN ('r','v','m','S','f','p') LOOP`,
@@ -4261,7 +4274,7 @@ echo "DB hazır ✅"`,
 
       const permFixB64 = Buffer.from(permFixSql).toString('base64');
       const permFixCode = await sshExecStream(targetHost, targetPass,
-        `echo '${permFixB64}' | base64 -d > /tmp/fix_perms.sql && docker exec -i supabase-${targetInstance}-db psql -U postgres -d postgres < /tmp/fix_perms.sql 2>&1 && echo "Schema sahiplikleri düzeltildi ✅"`,
+        `echo '${permFixB64}' | base64 -d > /tmp/fix_perms.sql && docker exec -i supabase-${targetInstance}-db psql -U supabase_admin -d postgres < /tmp/fix_perms.sql 2>&1 && echo "Schema sahiplikleri düzeltildi ✅"`,
         sessionId
       );
       if (permFixCode !== 0) {
@@ -4271,9 +4284,9 @@ echo "DB hazır ✅"`,
       step('Adım 7: İlgili servisler yeniden başlatılıyor');
       if (skipInstall) {
         const restartCode = await sshExecStream(targetHost, targetPass,
-          `docker restart supabase-rest supabase-realtime || echo "Bazi servisler yeniden baslatilamadi"`,
+          `docker restart supabase-${targetInstance}-rest realtime-dev.supabase-realtime || echo "Bazi servisler yeniden baslatilamadi"`,
           sessionId,
-          { stepLabel: 'API Cache Yenileme' }
+          optionalStreamOptions('API Cache Yenileme')
         );
       } else {
         const startAllCode = await sshExecStream(targetHost, targetPass,
@@ -4428,7 +4441,7 @@ if [ -z "$TARGET_KEY" ]; then
   exit 1
 fi
 echo "Veritabanından dosya versiyonları çekiliyor (API bypass)..."
-docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "SELECT bucket_id || ':' || name || '|' || COALESCE(version, '') FROM storage.objects;" > versions.txt
+docker exec -i supabase-${targetInstance}-db psql -U supabase_admin -d postgres -t -A -c "SELECT bucket_id || ':' || name || '|' || COALESCE(version, '') FROM storage.objects;" > versions.txt
 echo "Docker node:22-alpine imajı kontrol ediliyor..."
 docker pull node:22-alpine >/dev/null 2>&1
 echo "Bağımlılıklar kuruluyor (npm install @supabase/supabase-js)..."
@@ -4451,8 +4464,8 @@ rm -rf /tmp/storage-migrator
       const patchBash = `
 cd /root/supabase/docker
 mkdir -p patches
-docker cp supabase-storage:/app/dist/storage/backend/secure-path.js patches/secure-path.js 2>/dev/null || true
-docker cp supabase-storage:/app/dist/storage/backend/file.js patches/file.js 2>/dev/null || true
+docker cp supabase-${targetInstance}-storage:/app/dist/storage/backend/secure-path.js patches/secure-path.js 2>/dev/null || true
+docker cp supabase-${targetInstance}-storage:/app/dist/storage/backend/file.js patches/file.js 2>/dev/null || true
 
 if [ -f "patches/secure-path.js" ]; then
   if ! grep -q 'relativePath.startsWith("/")' patches/secure-path.js; then
@@ -4466,7 +4479,7 @@ if [ -f "patches/file.js" ]; then
   fi
 fi
 
-if ! grep -q 'patches/secure-path.js' docker-compose.yml; then
+if [ -f patches/secure-path.js ] && [ -f patches/file.js ] && ! grep -q 'patches/secure-path.js' docker-compose.yml; then
   sed -i 's|- ./volumes/storage:/var/lib/storage:z|- ./volumes/storage:/var/lib/storage:z\\n      - ./patches/secure-path.js:/app/dist/storage/backend/secure-path.js:ro\\n      - ./patches/file.js:/app/dist/storage/backend/file.js:ro|g' docker-compose.yml
   docker compose stop storage
   docker compose rm -f storage
@@ -4474,7 +4487,7 @@ if ! grep -q 'patches/secure-path.js' docker-compose.yml; then
 fi
 echo "Yamalar basariyla uygulandi!"
       `;
-      const patchCode = await sshExecStream(targetHost, targetPass, patchBash, sessionId, { stepLabel: 'API Yamaları' });
+      const patchCode = await sshExecStream(targetHost, targetPass, patchBash, sessionId, optionalStreamOptions('API Yamaları'));
       if (patchCode !== 0) {
         log('⚠️ Storage API yamaları uygulanırken bir hata oluştu. Storage servisi varsayılan ayarlarla çalışmaya devam ediyor.', 'warn');
       } else {
@@ -4490,6 +4503,19 @@ echo "Yamalar basariyla uygulandi!"
 
     } catch (err) {
       log(`❌ Kritik Hata: ${err.message}`, 'error');
+      if (cleanupOnFailure) {
+        log('🧹 Otomatik temizlik açık: hedefteki yarım Supabase stack\'i kaldırılıyor...', 'warn');
+        try {
+          await sshExecStream(targetHost, targetPass,
+            `cd ${tgtDir}/docker 2>/dev/null && (docker compose down -v --remove-orphans >/dev/null 2>&1 || true); rm -rf ${tgtDir}/docker/volumes/db/data 2>/dev/null; echo "Temizlik tamamlandı"`,
+            sessionId,
+            { stepLabel: 'Başarısızlık sonrası temizlik' }
+          );
+          log('🧹 Hedef temizlendi; bir sonraki çalıştırma sıfırdan başlayacak.', 'warn');
+        } catch (cleanupErr) {
+          log(`⚠️ Temizlik sırasında hata (elle kontrol gerekebilir): ${cleanupErr.message}`, 'warn');
+        }
+      }
       closeSseSession(sessionId, { type: 'error', msg: err.message });
     }
   })();
