@@ -1,9 +1,16 @@
 import { createHmac, randomBytes } from "node:crypto";
+import { fetch as undiciFetch, Agent, type Response as UndiciResponse } from "undici";
 import type { JobLogEntry, JobRequestInput } from "@/types/domain";
 
 type LogFn = (jobId: string, level: JobLogEntry["level"], message: string) => Promise<void> | void;
 
 const LEGACY_CONNECT_TIMEOUT_MS = 10_000;
+
+// SSE log akışı dakikalarca veri göndermeyebilir (ör. Supabase DB ilk init sessizce
+// birkaç dakika sürer). undici'nin varsayılan ~300 sn body/headers timeout'u bu
+// sessizlikte soketi kapatıp "TypeError: terminated" fırlatıyor; bu yüzden hedef
+// sunucuda taşıma devam ederken iş hatalı sayılıyordu. Akış için timeout'ları kapatıyoruz.
+const STREAM_DISPATCHER = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
 
 export class LegacyBridgeUnavailableError extends Error {
   constructor(message: string) {
@@ -116,11 +123,24 @@ function isNoiseLogLine(message: string) {
 }
 
 async function readLegacySse(jobId: string, url: URL, addLog: LogFn) {
-  const response = await fetchWithTimeout(url, {
-    headers: {
-      Accept: "text/event-stream"
-    }
-  }, LEGACY_CONNECT_TIMEOUT_MS);
+  // Sadece bağlantı kurulana kadar zaman aşımı uygula; header'lar gelir gelmez temizle.
+  // Akış başladıktan sonra body idle timeout'u STREAM_DISPATCHER ile kapalı olduğundan
+  // uzun sessiz aralıklar (ör. DB ilk init) akışı "terminated" ile düşürmez.
+  const controller = new AbortController();
+  const connectTimeout = setTimeout(() => controller.abort(), LEGACY_CONNECT_TIMEOUT_MS);
+
+  let response: UndiciResponse;
+  try {
+    response = await undiciFetch(url, {
+      headers: { Accept: "text/event-stream" },
+      signal: controller.signal,
+      dispatcher: STREAM_DISPATCHER
+    });
+  } catch (error) {
+    throw new LegacyBridgeUnavailableError(buildLegacyConnectionMessage(url.origin, error));
+  } finally {
+    clearTimeout(connectTimeout);
+  }
 
   if (!response.ok || !response.body) {
     throw new Error(`Legacy log stream açılamadı: HTTP ${response.status}`);
