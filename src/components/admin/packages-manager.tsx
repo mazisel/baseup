@@ -85,7 +85,6 @@ export function PackagesManager({ initialPackages }: { initialPackages: Package[
       name: "Basic",
       description: "",
       price_kurus: 0,
-      price_kurus_try: 0,
       currency: "USD",
       billing_period: "monthly",
       plan_id: "basic",
@@ -137,7 +136,6 @@ export function PackagesManager({ initialPackages }: { initialPackages: Package[
               </div>
               <div>
                 <strong>{formatMoney(pkg.price_kurus, pkg.currency)}</strong>
-                <span className="muted" style={{ marginLeft: 8 }}>({formatMoney(pkg.price_kurus_try || 0, "TRY")})</span>
                 <div className="muted" style={{ fontSize: 13, textAlign: "right" }}>/{pkg.billing_period}</div>
               </div>
               <div style={{ width: 80, textAlign: "center" }}>
@@ -164,7 +162,6 @@ export function PackagesManager({ initialPackages }: { initialPackages: Package[
 function PackageForm({ formData, setFormData }: { formData: Partial<Package>, setFormData: (data: Partial<Package>) => void }) {
   const [featuresStr, setFeaturesStr] = useState((formData.features || []).join(", "));
   const [priceUsdStr, setPriceUsdStr] = useState(fromMinorUnit(formData.price_kurus || 0).toString());
-  const [priceTryStr, setPriceTryStr] = useState(fromMinorUnit(formData.price_kurus_try || 0).toString());
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     let finalValue: string | number | boolean = value;
@@ -178,11 +175,6 @@ function PackageForm({ formData, setFormData }: { formData: Partial<Package>, se
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPriceUsdStr(e.target.value);
     setFormData({ ...formData, price_kurus: toMinorUnit(Number(e.target.value)) });
-  };
-
-  const handleTryPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPriceTryStr(e.target.value);
-    setFormData({ ...formData, price_kurus_try: toMinorUnit(Number(e.target.value)) });
   };
 
   const handleFeaturesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -201,31 +193,17 @@ function PackageForm({ formData, setFormData }: { formData: Partial<Package>, se
         <label>Slug / Sistem plan kodu</label>
         <input name="slug" value={formData.slug || ""} onChange={handleChange} />
       </div>
-      <div className="field admin-field-pair">
-        <div className="field">
-          <label>Fiyat (USD)</label>
-          <input
-            name="price_usd"
-            type="number"
-            min="0"
-            step="0.01"
-            value={priceUsdStr}
-            onChange={handlePriceChange}
-            placeholder="Örn: 29"
-          />
-        </div>
-        <div className="field">
-          <label>Fiyat (Türkiye / ₺)</label>
-          <input
-            name="price_try"
-            type="number"
-            min="0"
-            step="0.01"
-            value={priceTryStr}
-            onChange={handleTryPriceChange}
-            placeholder="Örn: 349"
-          />
-        </div>
+      <div className="field">
+        <label>Fiyat (USD)</label>
+        <input
+          name="price_usd"
+          type="number"
+          min="0"
+          step="0.01"
+          value={priceUsdStr}
+          onChange={handlePriceChange}
+          placeholder="Örn: 29"
+        />
       </div>
       <div className="field">
         <label>Periyot</label>
@@ -272,8 +250,7 @@ function normalizePackageForm(formData: Partial<Package>): Partial<Package> {
     slug,
     plan_id: slug,
     currency: "USD",
-    price_kurus: Math.max(0, Math.round(formData.price_kurus || 0)),
-    price_kurus_try: Math.max(0, Math.round(formData.price_kurus_try || 0))
+    price_kurus: Math.max(0, Math.round(formData.price_kurus || 0))
   };
 }
 

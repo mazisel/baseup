@@ -194,7 +194,6 @@ export type Package = {
   name: string;
   description: string;
   price_kurus: number;
-  price_kurus_try?: number;
   currency: string;
   billing_period: string;
   plan_id: string;
@@ -225,7 +224,6 @@ export async function createPackage(pkg: Omit<Package, "id" | "created_at" | "up
       name: pkg.name,
       description: pkg.description,
       price_kurus: pkg.price_kurus,
-      price_kurus_try: pkg.price_kurus_try || 0,
       currency: pkg.currency,
       billing_period: pkg.billing_period,
       plan_id: pkg.plan_id,

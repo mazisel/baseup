@@ -67,16 +67,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Package not found or inactive" }, { status: 404 });
     }
 
-    const isTurkey = request.headers.get("x-vercel-ip-country") === "TR" || request.headers.get("accept-language")?.includes("tr") || false;
-    let payment_amount = pkg.price_kurus; // Kuruş cinsinden
-    let payment_currency = pkg.currency || "USD";
-
-    if (isTurkey && pkg.price_kurus_try > 0) {
-      payment_amount = pkg.price_kurus_try;
-      payment_currency = "TL";
-    }
-
-    if (payment_currency === "TRY") payment_currency = "TL";
+    let payment_amount = pkg.price_kurus; // Minor unit (USD cents)
+    const payment_currency = pkg.currency || "USD";
 
     let appliedCouponCode: string | null = null;
 
@@ -173,7 +165,7 @@ export async function POST(request: Request) {
       timeout_limit: "30",
       currency,
       test_mode,
-      lang: "tr"
+      lang: locale === "en" ? "en" : "tr"
     };
 
     // 1. Adım: PayTR sunucusuna bu bilgileri göndererek asıl session token'ı (iframe için) almamız gerekiyor

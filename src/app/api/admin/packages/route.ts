@@ -34,7 +34,6 @@ export async function POST(request: Request) {
         name: data.name || "",
         description: data.description || "",
         price_kurus: Number(data.price_kurus) || 0,
-        price_kurus_try: Number(data.price_kurus_try) || 0,
         currency: "USD",
         billing_period: data.billing_period || "monthly",
         plan_id: slug,
@@ -81,9 +80,6 @@ function normalizePackageUpdates(updates: Record<string, unknown>) {
   normalized.currency = "USD";
   if (typeof normalized.price_kurus === "number") {
     normalized.price_kurus = Math.max(0, Math.round(normalized.price_kurus));
-  }
-  if (typeof normalized.price_kurus_try === "number") {
-    normalized.price_kurus_try = Math.max(0, Math.round(normalized.price_kurus_try));
   }
 
   return normalized;

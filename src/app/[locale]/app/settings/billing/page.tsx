@@ -6,7 +6,6 @@ import { getCopy } from "@/lib/i18n";
 import { PaytrCheckout } from "@/components/settings/paytr-checkout";
 import { createClient } from "@supabase/supabase-js";
 import { formatMoney } from "@/lib/money";
-import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -16,16 +15,14 @@ const supabase = createClient(
 );
 
 export default async function BillingPage({ searchParams }: { searchParams: Promise<{ packageId?: string, status?: string }> }) {
-  const [user, { locale }, headersList] = await Promise.all([
+  const [user, { locale }] = await Promise.all([
     getCurrentUser(),
-    getPreferences(),
-    headers()
+    getPreferences()
   ]);
-  
+
   if (!user) return null;
 
   const copy = getCopy(locale).billing;
-  const isTurkey = headersList.get("x-vercel-ip-country") === "TR" || headersList.get("accept-language")?.includes("tr") || false;
 
   const { packageId: targetPackageId, status } = await searchParams;
 
@@ -53,7 +50,20 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
           </div>
         </div>
 
-        <PaytrCheckout packageId={targetPackageId} locale={locale} />
+        <PaytrCheckout
+          packageId={targetPackageId}
+          locale={locale}
+          plan={{
+            name: selectedPackage.name,
+            description: selectedPackage.description,
+            priceKurus: selectedPackage.price_kurus,
+            currency: selectedPackage.currency || "USD",
+            billingPeriod: selectedPackage.billing_period,
+            monthlyJobLimit: selectedPackage.monthly_job_limit,
+            parallelJobLimit: selectedPackage.parallel_job_limit,
+            features: selectedPackage.features || [],
+          }}
+        />
       </div>
     );
   }
@@ -100,10 +110,9 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
       <div className="module-grid">
         {(packages || []).map(pkg => {
-          const showTry = isTurkey && pkg.price_kurus_try > 0;
-          const displayPrice = showTry ? pkg.price_kurus_try : pkg.price_kurus;
-          const displayCurrency = showTry ? "TRY" : (pkg.currency || "USD");
-          
+          const displayPrice = pkg.price_kurus;
+          const displayCurrency = pkg.currency || "USD";
+
           return (
           <section key={pkg.id} className="module-card" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             <div style={{ flex: 1 }}>
