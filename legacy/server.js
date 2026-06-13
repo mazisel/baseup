@@ -2919,8 +2919,8 @@ app.post('/api/migrate', async (req, res) => {
         `GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO supabase_auth_admin;`,
         `GRANT ALL ON ALL ROUTINES IN SCHEMA auth TO supabase_auth_admin;`,
         // Spesifik kritik fonksiyonların sahipliği mutlaka değişmeli
-        `ALTER FUNCTION IF EXISTS auth.uid() OWNER TO supabase_auth_admin;`,
-        `ALTER FUNCTION IF EXISTS auth.role() OWNER TO supabase_auth_admin;`,
+        `ALTER FUNCTION auth.uid() OWNER TO supabase_auth_admin;`,
+        `ALTER FUNCTION auth.role() OWNER TO supabase_auth_admin;`,
         // ═══ Storage schema ═══
         `CREATE SCHEMA IF NOT EXISTS storage_vectors AUTHORIZATION supabase_storage_admin;`,
         `ALTER SCHEMA storage OWNER TO supabase_storage_admin;`,
@@ -3029,7 +3029,7 @@ app.post('/api/migrate', async (req, res) => {
           log('⚠️ auth.users sahibi hâlâ yanlış! Manuel fix deneniyor...', 'warn');
           // Son çare: doğrudan ALTER komutları
           const manualFix = await sshExecStream(targetHost, targetPass,
-            `${superPsql} -c "ALTER SCHEMA auth OWNER TO supabase_auth_admin; ALTER SCHEMA storage OWNER TO supabase_storage_admin; ALTER TYPE IF EXISTS auth.factor_type OWNER TO supabase_auth_admin; ALTER FUNCTION IF EXISTS auth.uid() OWNER TO supabase_auth_admin; ALTER FUNCTION IF EXISTS auth.role() OWNER TO supabase_auth_admin;" -c "DO \\$\\$fix\\$\\$ DECLARE r RECORD; BEGIN FOR r IN SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='auth' AND relkind IN ('r','v','m','S','f','p') LOOP BEGIN EXECUTE 'ALTER TABLE auth.' || quote_ident(r.relname) || ' OWNER TO supabase_auth_admin'; EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; FOR r IN SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='storage' AND relkind IN ('r','v','m','S','f','p') LOOP BEGIN EXECUTE 'ALTER TABLE storage.' || quote_ident(r.relname) || ' OWNER TO supabase_storage_admin'; EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; FOR r IN SELECT t.typname FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='auth' AND t.typtype IN ('e','d') AND left(t.typname,1) <> '_' LOOP BEGIN EXECUTE 'ALTER TYPE auth.' || quote_ident(r.typname) || ' OWNER TO supabase_auth_admin'; EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; END \\$\\$fix\\$\\$;" && echo "Manuel fix tamamlandı"`,
+            `${superPsql} -c "ALTER SCHEMA auth OWNER TO supabase_auth_admin; ALTER SCHEMA storage OWNER TO supabase_storage_admin; ALTER TYPE IF EXISTS auth.factor_type OWNER TO supabase_auth_admin; ALTER FUNCTION auth.uid() OWNER TO supabase_auth_admin; ALTER FUNCTION auth.role() OWNER TO supabase_auth_admin;" -c "DO \\$\\$fix\\$\\$ DECLARE r RECORD; BEGIN FOR r IN SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='auth' AND relkind IN ('r','v','m','S','f','p') LOOP BEGIN EXECUTE 'ALTER TABLE auth.' || quote_ident(r.relname) || ' OWNER TO supabase_auth_admin'; EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; FOR r IN SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='storage' AND relkind IN ('r','v','m','S','f','p') LOOP BEGIN EXECUTE 'ALTER TABLE storage.' || quote_ident(r.relname) || ' OWNER TO supabase_storage_admin'; EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; FOR r IN SELECT t.typname FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='auth' AND t.typtype IN ('e','d') AND left(t.typname,1) <> '_' LOOP BEGIN EXECUTE 'ALTER TYPE auth.' || quote_ident(r.typname) || ' OWNER TO supabase_auth_admin'; EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; END \\$\\$fix\\$\\$;" && echo "Manuel fix tamamlandı"`,
             sessionId
           );
           // Son durum kontrol
@@ -4164,8 +4164,8 @@ echo "DB hazır ✅"`,
         `GRANT ALL ON ALL TABLES IN SCHEMA auth TO supabase_auth_admin;`,
         `GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO supabase_auth_admin;`,
         `GRANT ALL ON ALL ROUTINES IN SCHEMA auth TO supabase_auth_admin;`,
-        `ALTER FUNCTION IF EXISTS auth.uid() OWNER TO supabase_auth_admin;`,
-        `ALTER FUNCTION IF EXISTS auth.role() OWNER TO supabase_auth_admin;`,
+        `ALTER FUNCTION auth.uid() OWNER TO supabase_auth_admin;`,
+        `ALTER FUNCTION auth.role() OWNER TO supabase_auth_admin;`,
         `CREATE SCHEMA IF NOT EXISTS storage_vectors AUTHORIZATION supabase_storage_admin;`,
         `ALTER SCHEMA storage OWNER TO supabase_storage_admin;`,
         `DO $fix$ DECLARE r RECORD; BEGIN`,
