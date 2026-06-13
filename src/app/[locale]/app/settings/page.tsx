@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CreditCard, ShieldCheck } from "lucide-react";
+import { CreditCard, Server, ShieldCheck } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getCopy } from "@/lib/i18n";
 import { listJobs } from "@/lib/jobs";
@@ -15,6 +15,7 @@ export default async function SettingsPage() {
   const copy = getCopy(locale);
   const jobs = await listJobs(user);
   const canManageTeam = user.role === "owner" || user.role === "admin";
+  const canManageServers = ["owner", "admin", "operator"].includes(user.role);
 
   return (
     <div className="content">
@@ -64,6 +65,17 @@ export default async function SettingsPage() {
           </div>
           <span className="tag">{copy.settings.billingTag}</span>
         </Link>
+
+        {canManageServers ? (
+          <Link href="/app/settings/servers" className="module-card" style={{ textDecoration: "none", color: "inherit" }}>
+            <Server />
+            <div>
+              <h3>{copy.settings.serversTitle}</h3>
+              <p>{copy.settings.serversDescription}</p>
+            </div>
+            <span className="tag">{copy.settings.serversTag}</span>
+          </Link>
+        ) : null}
       </div>
     </div>
   );
