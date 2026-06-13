@@ -13,11 +13,14 @@ const connection = {
 export const migrationQueue = new Queue("migration-jobs", {
   connection,
   defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: "exponential",
-      delay: 1000,
-    },
+    // Migration işleri uzun sürer ve hedef sunucuda durum bırakır (/root/supabase,
+    // Docker container'ları, yarım DB init vb.). Bir deneme başarısız sayılsa bile
+    // bridge tarafındaki süreç çalışmaya devam edebildiğinden, otomatik retry İKİNCİ
+    // bir paralel taşımayı aynı hedefte başlatıp çakışmaya yol açıyordu (git
+    // "invalid index-pack output", container adı uyuşmazlığı vb.). Bu yüzden otomatik
+    // tekrar yok; başarısız iş, hedef temizlendikten sonra kullanıcı tarafından manuel
+    // "retry" ucuyla yeniden başlatılır.
+    attempts: 1,
     removeOnComplete: true,
     removeOnFail: 100, // Keep last 100 failed jobs for debugging
   },
