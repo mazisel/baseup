@@ -4123,7 +4123,10 @@ echo "DB hazır ✅"`,
         : 'Adım 4: Supabase Cloud\'dan veri çekiliyor (PostgreSQL 17 Client İle)'
       );
       log(schemaOnly ? '📐 Sadece şema kopyalanacak — veriler aktarılmayacak' : '📦 Tüm veriler dahil kopyalanıyor', 'warn');
-      const cloudDumpMode = schemaOnly ? '--schema-only' : '--inserts';
+      // Tam veri için COPY (varsayılan) kullan; --inserts satır-satır çalışıp büyük
+      // veritabanlarında saatlerce sürüyor ve "INSERT 0 1" log seli üretip job_events'i
+      // boğuyordu. COPY toplu ve hızlıdır (self-hosted handler da bunu kullanıyor).
+      const cloudDumpMode = schemaOnly ? '--schema-only' : '';
       const dumpCode = await sshExecStream(targetHost, targetPass,
         `docker run --rm -i postgres:17-alpine pg_dump -d "${cloudUrl}" --clean --if-exists ${cloudDumpMode} --no-owner --no-privileges --quote-all-identifiers --exclude-schema=graphql --exclude-schema=graphql_public --exclude-schema=net --exclude-schema=pgsodium --exclude-schema=pgsodium_masks --exclude-schema=pgtle --exclude-schema=repack --exclude-schema=realtime --exclude-schema=supabase_functions --exclude-schema=supabase_migrations --exclude-schema=tiger --exclude-schema=topology --exclude-schema=vault > ${tgtDir}/cloud_dump.sql 2> ${tgtDir}/cloud_dump_error.log || (cat ${tgtDir}/cloud_dump_error.log >&2 && exit 1)`,
         sessionId,
