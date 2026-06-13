@@ -51,6 +51,7 @@ export function MonitorsClient({ locale }: { locale: Locale }) {
 
   const [newName, setNewName] = useState("");
   const [newUrl, setNewUrl] = useState("");
+  const [newInterval, setNewInterval] = useState(5);
 
   const fetchMonitors = useCallback(async (options: { silent?: boolean } = {}) => {
     if (!options.silent) setLoading(true);
@@ -91,7 +92,7 @@ export function MonitorsClient({ locale }: { locale: Locale }) {
       const res = await fetch("/api/monitors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName, url: newUrl })
+        body: JSON.stringify({ name: newName, url: newUrl, intervalMins: newInterval })
       });
 
       const data = await res.json().catch(() => ({}));
@@ -213,6 +214,17 @@ export function MonitorsClient({ locale }: { locale: Locale }) {
               placeholder={copy.urlPlaceholder}
               required
             />
+          </div>
+          <div className="field monitor-interval-field">
+            <label htmlFor="interval">{copy.intervalLabel}</label>
+            <select id="interval" value={newInterval} onChange={e => setNewInterval(Number(e.target.value))}>
+              <option value={1}>1 {copy.intervalUnit}</option>
+              <option value={5}>5 {copy.intervalUnit}</option>
+              <option value={10}>10 {copy.intervalUnit}</option>
+              <option value={15}>15 {copy.intervalUnit}</option>
+              <option value={30}>30 {copy.intervalUnit}</option>
+              <option value={60}>60 {copy.intervalUnit}</option>
+            </select>
           </div>
           <button className="button primary" disabled={adding} type="submit">
             <Plus size={16} />
@@ -396,7 +408,7 @@ export function MonitorsClient({ locale }: { locale: Locale }) {
           align-items: end;
           display: grid;
           gap: 14px;
-          grid-template-columns: minmax(180px, 0.85fr) minmax(280px, 1.4fr) auto;
+          grid-template-columns: minmax(140px, 0.7fr) minmax(200px, 1.4fr) minmax(110px, 0.6fr) auto;
         }
 
         .monitor-url-field input {

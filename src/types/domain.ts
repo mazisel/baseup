@@ -79,6 +79,7 @@ export type HealthMonitor = {
   workspaceId: string;
   name: string;
   url: string;
+  intervalMins: number;
   status: "pending" | "up" | "down" | "paused";
   lastCheckedAt?: string;
   createdAt: string;

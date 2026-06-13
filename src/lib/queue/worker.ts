@@ -189,14 +189,16 @@ function sleep(ms: number) {
 }
 
 export function startCronJobs() {
-  // Run every 5 minutes
+  // Run every 1 minute to support custom intervals
   setInterval(async () => {
     let monitors: Array<{
       id: string;
       workspace_id: string;
       name: string;
       url: string;
+      interval_mins?: number;
       status: string;
+      last_checked_at?: string;
     }> | null = null;
 
     try {
@@ -217,6 +219,13 @@ export function startCronJobs() {
     if (!monitors) return;
 
     for (const m of monitors) {
+      // Sıklığa göre bekleme süresini hesapla
+      const intervalMs = (m.interval_mins || 5) * 60 * 1000;
+      const lastCheckTime = m.last_checked_at ? new Date(m.last_checked_at).getTime() : 0;
+      if (Date.now() - lastCheckTime < intervalMs - 30000) {
+        continue; // Henüz süresi gelmemiş
+      }
+
       // Tek bir monitördeki hata diğer monitörlerin kontrolünü engellemesin.
       try {
         const check = await checkMonitorUrl(m.url);
@@ -259,5 +268,5 @@ export function startCronJobs() {
         console.error(`[cron] Monitör kontrolü başarısız (${m.id}):`, e instanceof Error ? e.message : e);
       }
     }
-  }, 5 * 60 * 1000); // 5 mins
+  }, 1 * 60 * 1000); // 1 min
 }

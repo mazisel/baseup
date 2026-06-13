@@ -9,6 +9,7 @@ type HealthMonitorRow = {
   workspace_id: string;
   name: string;
   url: string;
+  interval_mins: number;
   status: "pending" | "up" | "down" | "paused";
   last_checked_at: string | null;
   created_at: string;
@@ -29,6 +30,7 @@ function toMonitor(row: HealthMonitorRow, events: HealthEventRow[] = []) {
     workspaceId: row.workspace_id,
     name: row.name,
     url: row.url,
+    intervalMins: row.interval_mins,
     status: row.status,
     lastCheckedAt: row.last_checked_at || undefined,
     createdAt: row.created_at,
@@ -58,7 +60,7 @@ export async function GET() {
   }
   const { data, error } = await supabase
     .from("health_monitors")
-    .select("id, workspace_id, name, url, status, last_checked_at, created_at")
+    .select("id, workspace_id, name, url, interval_mins, status, last_checked_at, created_at")
     .eq("workspace_id", user.workspace.id)
     .order("created_at", { ascending: false });
 
@@ -111,7 +113,7 @@ export async function POST(req: Request) {
     }, { status: 409 });
   }
 
-  const body = await req.json().catch(() => null) as { name?: unknown; url?: unknown } | null;
+  const body = await req.json().catch(() => null) as { name?: unknown; url?: unknown; intervalMins?: unknown } | null;
   if (!body || typeof body !== "object") {
     return NextResponse.json({
       error: locale === "tr" ? "Geçersiz istek gövdesi" : "Invalid request body"
@@ -137,6 +139,11 @@ export async function POST(req: Request) {
         ? "Geçerli bir http(s) adresi girin. İç ağ ve localhost adresleri izlenemez."
         : "Enter a valid http(s) URL. Private network and localhost addresses cannot be monitored."
     }, { status: 400 });
+  }
+
+  let intervalMins = typeof body.intervalMins === "number" ? body.intervalMins : 5;
+  if (![1, 5, 10, 15, 30, 60].includes(intervalMins)) {
+    intervalMins = 5;
   }
 
   const supabase = getMonitorAdminClient();
@@ -169,6 +176,7 @@ export async function POST(req: Request) {
       workspace_id: user.workspace.id,
       name,
       url: normalizedUrl,
+      interval_mins: intervalMins,
       status: initialCheck.status,
       last_checked_at: new Date().toISOString(),
     })
