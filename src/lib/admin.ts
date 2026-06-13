@@ -166,8 +166,8 @@ export async function getAdminJobs(limit = 100) {
 export async function updateWorkspacePlan(workspaceId: string, plan: string) {
   const limits: Record<string, { monthly: number; parallel: number }> = {
     trial: { monthly: 10, parallel: 1 },
-    growth: { monthly: 100, parallel: 3 },
-    scale: { monthly: 500, parallel: 10 },
+    growth: { monthly: 100, parallel: 1 },
+    scale: { monthly: 500, parallel: 1 },
   };
 
   const l = limits[plan] || limits.trial;
