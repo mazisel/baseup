@@ -18,6 +18,11 @@ const connection = {
   retryStrategy: (times: number) => Math.min(times * 1_000, 30_000),
 };
 
+// Worker'ın aynı anda kaç işi işleyeceği. Kullanıcı (workspace) başına paralel iş
+// limiti uygulama katmanında (checkJobQuota) zorlanır; bu ayar ise farklı
+// kullanıcıların işlerinin birbirini beklemeden paralel ilerlemesini sağlar.
+const WORKER_CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || "10", 10) || 10;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://dummy.supabase.co",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "dummy-key" // We need a service role key to insert logs bypassing RLS
@@ -119,7 +124,7 @@ export function startWorker() {
         throw error;
       }
     },
-    { connection }
+    { connection, concurrency: WORKER_CONCURRENCY }
   );
 
   worker.on("completed", (job) => {
@@ -143,7 +148,7 @@ export function startWorker() {
           .in("status", ["running", "queued"]);
       }
     }
-  }, { connection, concurrency: 10 });
+  });
 
   worker.on("error", (error) => {
     const code = (error as NodeJS.ErrnoException).code;
