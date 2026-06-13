@@ -4067,6 +4067,7 @@ systemctl restart nginx`,
         const startDbCode = await sshExecStream(targetHost, targetPass,
           `cd ${tgtDir}/docker && \
 cp docker-compose.yml docker-compose.yml.bak && \
+sed -i -E "s/container_name:[[:space:]]*supabase-/container_name: supabase-${targetInstance}-/g" docker-compose.yml && \
 sed -i 's|public.ecr.aws/supabase/postgres:|supabase/postgres:|g' docker-compose.yml && \
 sed -i 's|public.ecr.aws/supabase/realtime:|supabase/realtime:|g' docker-compose.yml && \
 sed -i 's|public.ecr.aws/supabase/gotrue:|supabase/gotrue:|g' docker-compose.yml && \
