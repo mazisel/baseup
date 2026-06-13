@@ -4020,6 +4020,8 @@ app.post('/api/migrate-from-cloud', (req, res) => {
           `export DEBIAN_FRONTEND=noninteractive && \
 apt-get update -y && \
 apt-get install -y docker.io docker-compose-v2 git nginx certbot python3-certbot-nginx apache2-utils && \
+systemctl enable --now docker && \
+systemctl start docker && \
 rm -rf ${tgtDir} && \
 git clone --depth 1 https://github.com/supabase/supabase ${tgtDir}`,
           sessionId,

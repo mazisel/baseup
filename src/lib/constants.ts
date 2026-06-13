@@ -422,13 +422,13 @@ export const PLAN_LIMITS: Record<string, {
   growth: {
     label: "Growth",
     monthlyJobs: 100,
-    parallelJobs: 3,
+    parallelJobs: 1,
     legacyBridge: true
   },
   scale: {
     label: "Scale",
     monthlyJobs: 500,
-    parallelJobs: 10,
+    parallelJobs: 1,
     legacyBridge: true
   }
 };

@@ -143,7 +143,7 @@ export function startWorker() {
           .in("status", ["running", "queued"]);
       }
     }
-  });
+  }, { connection, concurrency: 10 });
 
   worker.on("error", (error) => {
     const code = (error as NodeJS.ErrnoException).code;
