@@ -1212,6 +1212,30 @@ h3 {
   gap: 7px;
 }
 
+.saved-server-control {
+  display: grid;
+  gap: 7px;
+}
+
+.saved-server-control label {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.save-server-toggle {
+  align-items: flex-start;
+  color: var(--ink);
+  font-weight: 700;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.saved-server-name-field {
+  display: grid;
+  gap: 7px;
+}
+
 .field.full {
   grid-column: 1 / -1;
 }

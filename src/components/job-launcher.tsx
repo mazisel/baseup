@@ -1,23 +1,60 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, CheckCircle2, Play, ShieldCheck, Info } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Play, ShieldCheck, Info, Server } from "lucide-react";
 import { getModules } from "@/lib/constants";
 import { getCopy } from "@/lib/i18n";
 import type { Locale } from "@/lib/preference-shared";
-import type { JobRequestInput, MigrationModuleType } from "@/types/domain";
+import type { JobRequestInput, MigrationModuleType, SavedServer } from "@/types/domain";
 
 const DEFAULT_TYPE: MigrationModuleType = "self_hosted_migration";
 const STEP_ORDER = ["package", "details", "options"] as const;
 
 type LauncherStep = typeof STEP_ORDER[number];
+type LauncherCopy = ReturnType<typeof getCopy>["launcher"];
 
 function FieldTooltip({ text }: { text: string }) {
   return (
     <span title={text} style={{ marginLeft: 6, color: 'var(--color-muted, #737373)', cursor: 'help', verticalAlign: 'text-bottom' }}>
       <Info size={14} />
     </span>
+  );
+}
+
+function SavedServerControl({
+  copy,
+  id,
+  selectedId,
+  servers,
+  onSelect
+}: {
+  copy: LauncherCopy;
+  id: string;
+  selectedId: string;
+  servers: SavedServer[];
+  onSelect: (serverId: string) => void;
+}) {
+  return (
+    <div className="saved-server-control">
+      <label htmlFor={id}>
+        <Server size={14} />
+        {copy.savedServer}
+      </label>
+      <select
+        disabled={servers.length === 0}
+        id={id}
+        onChange={(event) => onSelect(event.target.value)}
+        value={selectedId}
+      >
+        <option value="">{servers.length > 0 ? copy.savedServerPlaceholder : copy.noSavedServers}</option>
+        {servers.map(server => (
+          <option key={server.id} value={server.id}>
+            {server.name} - {server.host}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 
@@ -49,6 +86,13 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
   const [type, setType] = useState<MigrationModuleType>(initialType ?? DEFAULT_TYPE);
   const [step, setStep] = useState<LauncherStep>("package");
   const [instanceCount, setInstanceCount] = useState("1");
+  const [savedServers, setSavedServers] = useState<SavedServer[]>([]);
+  const [sourceHost, setSourceHost] = useState("");
+  const [targetHost, setTargetHost] = useState("");
+  const [sourceSavedServerId, setSourceSavedServerId] = useState("");
+  const [targetSavedServerId, setTargetSavedServerId] = useState("");
+  const [saveSourceServer, setSaveSourceServer] = useState(false);
+  const [saveTargetServer, setSaveTargetServer] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -63,6 +107,28 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
     { id: "options", label: copy.launcher.stepOptions }
   ];
 
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadSavedServers() {
+      try {
+        const response = await fetch("/api/saved-servers");
+        if (!response.ok) return;
+        const data = await response.json().catch(() => ({})) as { servers?: SavedServer[] };
+        if (!ignore && Array.isArray(data.servers)) {
+          setSavedServers(data.servers);
+        }
+      } catch {
+        // The launcher remains usable even if saved servers cannot be loaded.
+      }
+    }
+
+    loadSavedServers();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   function goToStep(nextStep: LauncherStep) {
     setError("");
     setStep(nextStep);
@@ -76,6 +142,51 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
   function goBack() {
     const previousIndex = Math.max(currentStepIndex - 1, 0);
     goToStep(STEP_ORDER[previousIndex]);
+  }
+
+  function applySavedServer(kind: "source" | "target", serverId: string) {
+    const server = savedServers.find(item => item.id === serverId);
+    if (kind === "source") {
+      setSourceSavedServerId(serverId);
+      if (server) setSourceHost(server.host);
+      return;
+    }
+
+    setTargetSavedServerId(serverId);
+    if (server) setTargetHost(server.host);
+  }
+
+  async function saveServerForReuse(host: string, name: string) {
+    const response = await fetch("/api/saved-servers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ host, name })
+    });
+
+    if (!response.ok) throw new Error("Could not save server");
+    const data = await response.json().catch(() => ({})) as { server?: SavedServer };
+    return data.server || null;
+  }
+
+  async function persistRequestedServers(form: FormData) {
+    const requests: Array<Promise<SavedServer | null>> = [];
+    if (saveSourceServer && sourceHost.trim()) {
+      requests.push(saveServerForReuse(sourceHost, String(form.get("sourceServerName") || "")));
+    }
+    if (saveTargetServer && targetHost.trim()) {
+      requests.push(saveServerForReuse(targetHost, String(form.get("targetServerName") || "")));
+    }
+    if (requests.length === 0) return;
+
+    const results = await Promise.allSettled(requests);
+    const saved = results
+      .filter((result): result is PromiseFulfilledResult<SavedServer | null> => result.status === "fulfilled")
+      .map(result => result.value)
+      .filter((server): server is SavedServer => Boolean(server));
+
+    if (saved.length > 0) {
+      setSavedServers(current => mergeSavedServers(current, saved));
+    }
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -152,6 +263,7 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
         return;
       }
 
+      await persistRequestedServers(form);
       router.push(`/app/jobs/${data.job.id}`);
     } catch {
       setError(copy.launcher.createError);
@@ -259,7 +371,38 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
             <>
               <div className="field">
                 <label htmlFor="sourceHost">{copy.launcher.sourceHost}</label>
-                <input id="sourceHost" name="sourceHost" placeholder="1.2.3.4" />
+                <SavedServerControl
+                  copy={copy.launcher}
+                  id="sourceSavedServer"
+                  onSelect={(serverId) => applySavedServer("source", serverId)}
+                  selectedId={sourceSavedServerId}
+                  servers={savedServers}
+                />
+                <input
+                  id="sourceHost"
+                  name="sourceHost"
+                  onChange={(event) => {
+                    setSourceHost(event.target.value);
+                    setSourceSavedServerId("");
+                  }}
+                  placeholder="1.2.3.4"
+                  value={sourceHost}
+                />
+                <label className="toggle-row save-server-toggle">
+                  <input
+                    checked={saveSourceServer}
+                    name="saveSourceServer"
+                    onChange={(event) => setSaveSourceServer(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>{copy.launcher.saveSourceServer}</span>
+                </label>
+                {saveSourceServer ? (
+                  <div className="saved-server-name-field">
+                    <label htmlFor="sourceServerName">{copy.launcher.serverName}</label>
+                    <input id="sourceServerName" name="sourceServerName" placeholder={copy.launcher.serverNamePlaceholder} />
+                  </div>
+                ) : null}
               </div>
               <div className="field">
                 <label htmlFor="sourcePass">{copy.launcher.sourcePass}</label>
@@ -292,7 +435,38 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
                   {copy.launcher.targetHost}
                   <FieldTooltip text={locale === "tr" ? "Ubuntu sunucunuzun IP adresi (örn: 192.168.1.1)" : "IP address of your Ubuntu server"} />
                 </label>
-                <input id="targetHost" name="targetHost" placeholder="5.6.7.8" />
+                <SavedServerControl
+                  copy={copy.launcher}
+                  id="targetSavedServer"
+                  onSelect={(serverId) => applySavedServer("target", serverId)}
+                  selectedId={targetSavedServerId}
+                  servers={savedServers}
+                />
+                <input
+                  id="targetHost"
+                  name="targetHost"
+                  onChange={(event) => {
+                    setTargetHost(event.target.value);
+                    setTargetSavedServerId("");
+                  }}
+                  placeholder="5.6.7.8"
+                  value={targetHost}
+                />
+                <label className="toggle-row save-server-toggle">
+                  <input
+                    checked={saveTargetServer}
+                    name="saveTargetServer"
+                    onChange={(event) => setSaveTargetServer(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>{copy.launcher.saveTargetServer}</span>
+                </label>
+                {saveTargetServer ? (
+                  <div className="saved-server-name-field">
+                    <label htmlFor="targetServerName">{copy.launcher.serverName}</label>
+                    <input id="targetServerName" name="targetServerName" placeholder={copy.launcher.serverNamePlaceholder} />
+                  </div>
+                ) : null}
               </div>
               <div className="field">
                 <label htmlFor="targetPass">
@@ -636,4 +810,17 @@ function parseSettingsUpdates(text: string) {
         return [line.slice(0, index).trim(), line.slice(index + 1).trim()];
       })
   );
+}
+
+function mergeSavedServers(current: SavedServer[], saved: SavedServer[]) {
+  const byHost = new Map(current.map(server => [server.host, server]));
+  for (const server of saved) {
+    byHost.set(server.host, server);
+  }
+
+  return Array.from(byHost.values()).sort((a, b) => {
+    const dateA = new Date(a.lastUsedAt || a.createdAt).getTime();
+    const dateB = new Date(b.lastUsedAt || b.createdAt).getTime();
+    return dateB - dateA;
+  });
 }

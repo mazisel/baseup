@@ -95,6 +95,17 @@ export type HealthEvent = {
   createdAt: string;
 };
 
+export type SavedServer = {
+  id: string;
+  workspaceId: string;
+  createdBy?: string;
+  name: string;
+  host: string;
+  lastUsedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type JobRequestInput = {
   type: MigrationModuleType;
   sourceHost?: string;
