@@ -519,30 +519,34 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
         </div>
 
         <div className="option-grid">
-          <label className="toggle-row option-card">
-            <input name="getSSL" type="checkbox" />
-            <span>{copy.launcher.getSSL}</span>
-          </label>
-          <label className="toggle-row option-card">
-            <input name="setupBackup" type="checkbox" />
-            <span>{copy.launcher.setupBackup}</span>
-          </label>
-          <label className="toggle-row option-card">
-            <input name="migrateStorage" type="checkbox" />
-            <span>{copy.launcher.migrateStorage}</span>
-          </label>
-          <label className="toggle-row option-card">
-            <input name="continueOnMinorErrors" type="checkbox" />
-            <span>{copy.launcher.continueOnMinorErrors}</span>
-          </label>
-          <label className="toggle-row option-card">
-            <input name="skipInstall" type="checkbox" />
-            <span>{copy.launcher.skipInstall}</span>
-          </label>
+          {["self_hosted_migration", "cloud_to_self_hosted", "clean_install"].includes(type) && (
+            <label className="toggle-row option-card">
+              <input name="getSSL" type="checkbox" />
+              <span>{copy.launcher.getSSL}</span>
+            </label>
+          )}
+          {type === "self_hosted_migration" && (
+            <label className="toggle-row option-card">
+              <input name="setupBackup" type="checkbox" />
+              <span>{copy.launcher.setupBackup}</span>
+            </label>
+          )}
+          {type === "cloud_to_self_hosted" && (
+            <label className="toggle-row option-card">
+              <input name="migrateStorage" type="checkbox" />
+              <span>{copy.launcher.migrateStorage}</span>
+            </label>
+          )}
           {["self_hosted_migration", "cloud_to_self_hosted"].includes(type) && (
             <label className="toggle-row option-card">
-              <input name="anonymizeData" type="checkbox" />
-              <span>Kişisel Verileri Maskele (Anonimleştir)</span>
+              <input name="continueOnMinorErrors" type="checkbox" />
+              <span>{copy.launcher.continueOnMinorErrors}</span>
+            </label>
+          )}
+          {type === "cloud_to_self_hosted" && (
+            <label className="toggle-row option-card">
+              <input name="skipInstall" type="checkbox" />
+              <span>{copy.launcher.skipInstall}</span>
             </label>
           )}
           {["self_hosted_migration", "cloud_to_self_hosted"].includes(type) && (
@@ -575,7 +579,7 @@ export function JobLauncher({ initialType, locale }: { initialType?: MigrationMo
               <span>{copy.launcher.resume}</span>
             </label>
           )}
-          {needsTarget(type) && (
+          {["self_hosted_migration", "cloud_to_self_hosted"].includes(type) && (
             <label className="toggle-row option-card">
               <input name="cleanupOnFailure" type="checkbox" />
               <span>{copy.launcher.cleanupOnFailure}</span>
