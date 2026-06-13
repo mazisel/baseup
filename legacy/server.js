@@ -4043,7 +4043,16 @@ git clone --depth 1 https://github.com/supabase/supabase ${tgtDir}`,
 
         const dashPassEncoded = env.DASHBOARD_PASSWORD.replace(/'/g, "'\\''");
         const nginxCode = await sshExecStream(targetHost, targetPass,
-          `echo '${nginxB64}' | base64 -d > /etc/nginx/sites-available/supabase-${targetInstance} && \
+          `mkdir -p /etc/nginx/ssl && \
+for d in '${studioDomain}' '${apiDomain}'; do \
+  [ -z "$d" ] && continue; \
+  crt="/etc/nginx/ssl/$d.crt"; \
+  key="/etc/nginx/ssl/$d.key"; \
+  if [ ! -s "$crt" ] || [ ! -s "$key" ]; then \
+    openssl req -x509 -nodes -newkey rsa:2048 -days 3650 -keyout "$key" -out "$crt" -subj "/CN=$d" >/dev/null 2>&1 || true; \
+  fi; \
+done && \
+echo '${nginxB64}' | base64 -d > /etc/nginx/sites-available/supabase-${targetInstance} && \
 ln -sf /etc/nginx/sites-available/supabase-${targetInstance} /etc/nginx/sites-enabled/supabase-${targetInstance} && \
 rm -f /etc/nginx/sites-enabled/default && \
 htpasswd -b -c /etc/nginx/.htpasswd admin '${dashPassEncoded}' && \
