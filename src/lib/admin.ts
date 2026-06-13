@@ -164,20 +164,21 @@ export async function getAdminJobs(limit = 100) {
 
 // ── Plan Update ──
 export async function updateWorkspacePlan(workspaceId: string, plan: string) {
-  const limits: Record<string, { monthly: number; parallel: number }> = {
-    trial: { monthly: 10, parallel: 1 },
-    growth: { monthly: 100, parallel: 1 },
-    scale: { monthly: 500, parallel: 1 },
-  };
+  const { data: pkg } = await supabaseAdmin
+    .from("packages")
+    .select("monthly_job_limit, parallel_job_limit")
+    .eq("plan_id", plan)
+    .single();
 
-  const l = limits[plan] || limits.trial;
+  const monthly = pkg?.monthly_job_limit ?? 10;
+  const parallel = pkg?.parallel_job_limit ?? 1;
 
   const { error } = await supabaseAdmin
     .from("entitlements")
     .update({
       plan,
-      monthly_job_limit: l.monthly,
-      parallel_job_limit: l.parallel,
+      monthly_job_limit: monthly,
+      parallel_job_limit: parallel,
       updated_at: new Date().toISOString(),
     })
     .eq("workspace_id", workspaceId);

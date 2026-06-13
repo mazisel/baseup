@@ -14,7 +14,9 @@ type Workspace = {
   createdAt: string;
 };
 
-export function WorkspaceTable({ workspaces: initial }: { workspaces: Workspace[] }) {
+import type { Package } from "@/lib/admin";
+
+export function WorkspaceTable({ workspaces: initial, packages }: { workspaces: Workspace[], packages: Package[] }) {
   const [workspaces, setWorkspaces] = useState(initial);
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -92,9 +94,11 @@ export function WorkspaceTable({ workspaces: initial }: { workspaces: Workspace[
                     onChange={(e) => changePlan(ws.id, e.target.value)}
                     style={{ fontSize: 13, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)" }}
                   >
-                    <option value="trial">Trial</option>
-                    <option value="growth">Growth</option>
-                    <option value="scale">Scale</option>
+                    {packages.map(pkg => (
+                      <option key={pkg.plan_id} value={pkg.plan_id}>
+                        {pkg.name}
+                      </option>
+                    ))}
                   </select>
                 </td>
               </tr>

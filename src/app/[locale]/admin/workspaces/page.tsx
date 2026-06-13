@@ -1,10 +1,13 @@
-import { getAdminWorkspaces } from "@/lib/admin";
+import { getAdminWorkspaces, getAdminPackages } from "@/lib/admin";
 import { WorkspaceTable } from "@/components/admin/workspace-table";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminWorkspacesPage() {
-  const workspaces = await getAdminWorkspaces();
+  const [workspaces, packages] = await Promise.all([
+    getAdminWorkspaces(),
+    getAdminPackages()
+  ]);
 
   return (
     <div className="content">
@@ -16,7 +19,7 @@ export default async function AdminWorkspacesPage() {
       </div>
 
       <section className="panel">
-        <WorkspaceTable workspaces={workspaces} />
+        <WorkspaceTable workspaces={workspaces} packages={packages} />
       </section>
     </div>
   );

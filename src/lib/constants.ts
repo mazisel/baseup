@@ -407,31 +407,6 @@ export const MODULE_DEFINITIONS: Array<{
   }
 ];
 
-export const PLAN_LIMITS: Record<string, {
-  label: string;
-  monthlyJobs: number;
-  parallelJobs: number;
-  legacyBridge: boolean;
-}> = {
-  trial: {
-    label: "Trial",
-    monthlyJobs: 10,
-    parallelJobs: 1,
-    legacyBridge: false
-  },
-  growth: {
-    label: "Growth",
-    monthlyJobs: 100,
-    parallelJobs: 1,
-    legacyBridge: true
-  },
-  scale: {
-    label: "Scale",
-    monthlyJobs: 500,
-    parallelJobs: 1,
-    legacyBridge: true
-  }
-};
 
 export function getModuleMeta(type: MigrationModuleType) {
   return getModules("tr").find(module => module.id === type) ?? getModules("tr")[0];
